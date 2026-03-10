@@ -17,6 +17,13 @@ export default function Login() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
+  const authInputStyle = {
+    borderColor: '#5A7ACD',
+    color: '#2B2A2A',
+    backgroundColor: '#FFFFFF',
+    WebkitTextFillColor: '#2B2A2A',
+  } as const;
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -230,11 +237,8 @@ export default function Login() {
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="your@email.com"
                   disabled={loading}
-                  className="w-full border-2"
-                  style={{ 
-                    borderColor: '#5A7ACD',
-                    color: '#2B2A2A'
-                  }}
+                  className="w-full border-2 bg-white text-[#2B2A2A] placeholder:text-[#6D6969]"
+                  style={authInputStyle}
                 />
               </div>
 
@@ -249,11 +253,8 @@ export default function Login() {
                     onChange={(e) => setUsername(e.target.value)}
                     placeholder="What will heroes call you?"
                     disabled={loading}
-                    className="w-full border-2"
-                    style={{ 
-                      borderColor: '#5A7ACD',
-                      color: '#2B2A2A'
-                    }}
+                    className="w-full border-2 bg-white text-[#2B2A2A] placeholder:text-[#6D6969]"
+                    style={authInputStyle}
                   />
                 </div>
               )}
@@ -268,11 +269,8 @@ export default function Login() {
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
                   disabled={loading}
-                  className="w-full border-2"
-                  style={{ 
-                    borderColor: '#5A7ACD',
-                    color: '#2B2A2A'
-                  }}
+                  className="w-full border-2 bg-white text-[#2B2A2A] placeholder:text-[#6D6969]"
+                  style={authInputStyle}
                 />
               </div>
 
@@ -287,11 +285,8 @@ export default function Login() {
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     placeholder="••••••••"
                     disabled={loading}
-                    className="w-full border-2"
-                    style={{ 
-                      borderColor: '#5A7ACD',
-                      color: '#2B2A2A'
-                    }}
+                    className="w-full border-2 bg-white text-[#2B2A2A] placeholder:text-[#6D6969]"
+                    style={authInputStyle}
                   />
                 </div>
               )}
