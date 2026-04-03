@@ -887,6 +887,55 @@ export const questsApi = {
 
     if (error) throw error;
   },
+
+  async upsertQuest(characterId: string, quest: Quest, updates?: Partial<Quest>) {
+    const mergedQuest = {
+      ...quest,
+      ...updates,
+    };
+
+    const basePayload = {
+      title: mergedQuest.title,
+      description: mergedQuest.description,
+      type: mergedQuest.type,
+      difficulty: mergedQuest.difficulty,
+      rewards: mergedQuest.rewards,
+      requirements: mergedQuest.requirements,
+      completed: mergedQuest.completed,
+      completed_date: mergedQuest.completedDate?.toISOString(),
+      progress: mergedQuest.progress,
+      target: mergedQuest.target,
+    };
+
+    const { data: existing, error: lookupError } = await supabase
+      .from('quests')
+      .select('id')
+      .eq('character_id', characterId)
+      .eq('quest_id', quest.id)
+      .maybeSingle();
+
+    if (lookupError) throw lookupError;
+
+    if (existing?.id) {
+      const { error } = await supabase
+        .from('quests')
+        .update(basePayload)
+        .eq('id', existing.id);
+
+      if (error) throw error;
+      return;
+    }
+
+    const { error } = await supabase
+      .from('quests')
+      .insert({
+        character_id: characterId,
+        quest_id: quest.id,
+        ...basePayload,
+      });
+
+    if (error) throw error;
+  },
 };
 
 // ============== Leaderboard ==============

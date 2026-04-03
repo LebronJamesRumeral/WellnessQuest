@@ -216,6 +216,7 @@ export interface Quest {
   requirements: string;
   completed: boolean;
   completedDate?: Date;
+  cooldownUntil?: Date;
   progress?: number;
   target?: number;
   recommendedFor?: WellnessProfile[];

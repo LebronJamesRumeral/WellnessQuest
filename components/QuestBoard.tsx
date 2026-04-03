@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useGame } from '@/lib/context';
 import { Button } from '@/components/ui/button';
 import { Quest, QuestType, GameSession } from '@/lib/types';
@@ -23,6 +23,7 @@ export default function QuestBoard({ fullView = false }: QuestBoardProps) {
   const [activeGameQuestId, setActiveGameQuestId] = useState<string | null>(null);
   const [activeQuestionQuestId, setActiveQuestionQuestId] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<'all' | 'daily' | 'active' | 'game' | 'question'>('all');
+  const [now, setNow] = useState(Date.now());
 
   if (!gameState) return null;
 
@@ -118,7 +119,45 @@ export default function QuestBoard({ fullView = false }: QuestBoardProps) {
   const isGameQuest = (questId: string): boolean => questId.startsWith('quest-');
   const isQuestionQuest = (questId: string): boolean => questId.startsWith('qquest-');
 
-  const renderQuestCard = (quest: Quest, showActions: boolean = false, isCompleted: boolean = false) => (
+  const getCooldownRemainingMs = (quest: Quest): number => {
+    if (!quest.cooldownUntil) return 0;
+    return Math.max(0, new Date(quest.cooldownUntil).getTime() - now);
+  };
+
+  const getCooldownRemainingByQuestId = (questId: string): number => {
+    const availableQuest = gameState.availableQuests.find((quest) => quest.id === questId);
+    if (!availableQuest) return 0;
+    return getCooldownRemainingMs(availableQuest);
+  };
+
+  const formatCooldown = (remainingMs: number): string => {
+    const totalSeconds = Math.ceil(remainingMs / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+  };
+
+  useEffect(() => {
+    const hasCooldownQuest = gameState.availableQuests.some((quest) => getCooldownRemainingMs(quest) > 0);
+    if (!hasCooldownQuest) return;
+
+    const timer = window.setInterval(() => {
+      setNow(Date.now());
+    }, 1000);
+
+    return () => window.clearInterval(timer);
+  }, [gameState.availableQuests]);
+
+  const renderQuestCard = (
+    quest: Quest,
+    showActions: boolean = false,
+    isCompleted: boolean = false,
+    cooldownRemainingOverrideMs?: number,
+  ) => {
+    const remainingCooldownMs = cooldownRemainingOverrideMs ?? getCooldownRemainingMs(quest);
+    const isOnCooldown = remainingCooldownMs > 0;
+
+    return (
     <Card key={quest.id} className={`overflow-hidden hover:border-primary/50 transition-colors ${isCompleted ? 'opacity-60' : ''}`}>
       {(() => {
         const { buffedExperience, buffedGold } = getBuffedQuestRewards(quest);
@@ -168,6 +207,12 @@ export default function QuestBoard({ fullView = false }: QuestBoardProps) {
             <ClipboardList size={12} className="shrink-0 mt-0.5" />
             <span className="line-clamp-2">{quest.requirements}</span>
           </div>
+          {isOnCooldown && (
+            <div className="flex items-center gap-1.5 text-xs text-secondary bg-secondary/10 px-2 py-1.5 rounded border border-secondary/30 font-semibold">
+              <CloudMoon size={12} className="shrink-0" />
+              Cooldown: {formatCooldown(remainingCooldownMs)}
+            </div>
+          )}
         </div>
 
         {/* Compact Rewards Section */}
@@ -240,9 +285,10 @@ export default function QuestBoard({ fullView = false }: QuestBoardProps) {
               <Button
                 onClick={() => acceptQuest(quest.id)}
                 size="sm"
+                disabled={isOnCooldown}
                 className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-xs h-8"
               >
-                Accept Quest
+                {isOnCooldown ? `Cooldown ${formatCooldown(remainingCooldownMs)}` : 'Accept Quest'}
               </Button>
             )}
             {gameState.activeQuests.find(q => q.id === quest.id) && isGameQuest(quest.id) && (
@@ -270,6 +316,7 @@ export default function QuestBoard({ fullView = false }: QuestBoardProps) {
       })()}
     </Card>
   );
+  };
 
   const activeQuests = gameState.activeQuests;
   const availableQuests = gameState.availableQuests;
@@ -509,7 +556,9 @@ export default function QuestBoard({ fullView = false }: QuestBoardProps) {
             <div className="space-y-4">
               <h2 className="text-2xl font-bold">Completed Quests ({completedQuests.length})</h2>
               <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {completedQuests.map(quest => renderQuestCard(quest, false, true))}
+                {completedQuests.map((quest) =>
+                  renderQuestCard(quest, false, true, getCooldownRemainingByQuestId(quest.id))
+                )}
               </div>
             </div>
           )}

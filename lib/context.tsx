@@ -201,6 +201,49 @@ const createSampleShop = (): ShopItem[] => [
     price: 100,
     stats: { wisdom: 5 },
   },
+  {
+    id: 'item-5',
+    name: 'Titan Kettlebell',
+    description: 'Heavy training weapon that boosts strength and endurance for intense sessions',
+    type: 'weapon',
+    rarity: 'uncommon',
+    price: 85,
+    stats: { strength: 4, endurance: 1 },
+  },
+  {
+    id: 'item-6',
+    name: 'Ranger Training Vest',
+    description: 'Flexible armor designed for balanced workouts and daily mobility',
+    type: 'armor',
+    rarity: 'rare',
+    price: 120,
+    stats: { endurance: 3, agility: 2 },
+  },
+  {
+    id: 'item-7',
+    name: 'Mindful Charm',
+    description: 'A calming accessory that improves wisdom and focus during mental quests',
+    type: 'accessory',
+    rarity: 'uncommon',
+    price: 95,
+    stats: { wisdom: 3 },
+  },
+  {
+    id: 'item-8',
+    name: 'Stamina Elixir',
+    description: 'A restorative tonic for long adventure days and training sessions',
+    type: 'consumable',
+    rarity: 'uncommon',
+    price: 30,
+  },
+  {
+    id: 'item-9',
+    name: 'Focus Tonic',
+    description: 'A sharpness potion for question quests and concentration challenges',
+    type: 'consumable',
+    rarity: 'rare',
+    price: 45,
+  },
   // Gameplay Buff Items
   {
     id: 'item-boost-1',
@@ -249,6 +292,36 @@ const createSampleShop = (): ShopItem[] => [
     price: 500,
     stats: { strength: 3, wisdom: 3 },
     buffs: { xpMultiplier: 1.5, goldMultiplier: 1.5, speedBoost: 0, accuracyBoost: 0 },
+  },
+  {
+    id: 'item-boost-6',
+    name: 'Stormrunner Greaves',
+    description: 'Advanced armor that dramatically improves movement speed in mini-games',
+    type: 'armor',
+    rarity: 'epic',
+    price: 320,
+    stats: { agility: 4, endurance: 2 },
+    buffs: { xpMultiplier: 1, goldMultiplier: 1, speedBoost: 25, accuracyBoost: 0 },
+  },
+  {
+    id: 'item-boost-7',
+    name: 'Sage Lens',
+    description: 'Mystic accessory that boosts accuracy and grants a modest XP increase',
+    type: 'accessory',
+    rarity: 'epic',
+    price: 340,
+    stats: { wisdom: 4 },
+    buffs: { xpMultiplier: 1.1, goldMultiplier: 1, speedBoost: 0, accuracyBoost: 30 },
+  },
+  {
+    id: 'item-boost-8',
+    name: 'Guild Banner Sigil',
+    description: 'Rare emblem that improves both XP and gold gains for efficient progression',
+    type: 'accessory',
+    rarity: 'legendary',
+    price: 620,
+    stats: { endurance: 2, wisdom: 2 },
+    buffs: { xpMultiplier: 1.35, goldMultiplier: 1.35, speedBoost: 0, accuracyBoost: 10 },
   },
   // Customizations
   {
@@ -346,6 +419,63 @@ const createSampleShop = (): ShopItem[] => [
       visual: { color: '#a78bfa' },
     },
   },
+  {
+    id: 'custom-6',
+    name: 'Midnight Cloak',
+    description: 'A dark flowing cloak favored by elite night runners',
+    type: 'customization',
+    rarity: 'epic',
+    price: 240,
+    stats: { agility: 3, wisdom: 1 },
+    customization: {
+      id: 'custom-6',
+      name: 'Midnight Cloak',
+      description: 'A dark flowing cloak favored by elite night runners',
+      category: 'cloak',
+      rarity: 'epic',
+      price: 240,
+      stats: { agility: 3, wisdom: 1 },
+      visual: { color: '#1f2937' },
+    },
+  },
+  {
+    id: 'custom-7',
+    name: 'Sunfire Helm',
+    description: 'A bright helm that signals confidence and determination',
+    type: 'customization',
+    rarity: 'rare',
+    price: 160,
+    stats: { strength: 2, endurance: 1 },
+    customization: {
+      id: 'custom-7',
+      name: 'Sunfire Helm',
+      description: 'A bright helm that signals confidence and determination',
+      category: 'helmet',
+      rarity: 'rare',
+      price: 160,
+      stats: { strength: 2, endurance: 1 },
+      visual: { color: '#f97316' },
+    },
+  },
+  {
+    id: 'custom-8',
+    name: 'Verdant Aura',
+    description: 'A nature-themed aura for heroes focused on recovery and balance',
+    type: 'customization',
+    rarity: 'epic',
+    price: 260,
+    stats: { endurance: 2, wisdom: 2 },
+    customization: {
+      id: 'custom-8',
+      name: 'Verdant Aura',
+      description: 'A nature-themed aura for heroes focused on recovery and balance',
+      category: 'aura',
+      rarity: 'epic',
+      price: 260,
+      stats: { endurance: 2, wisdom: 2 },
+      visual: { color: '#22c55e' },
+    },
+  },
 ];
 
 export function GameProvider({ children }: { children: ReactNode }) {
@@ -364,6 +494,14 @@ export function GameProvider({ children }: { children: ReactNode }) {
   };
 
   const DAY_MS = 24 * 60 * 60 * 1000;
+  const QUEST_COOLDOWN_MS: Record<Quest['difficulty'], number> = {
+    easy: 5 * 60 * 1000,
+    medium: 10 * 60 * 1000,
+    hard: 15 * 60 * 1000,
+    legendary: 20 * 60 * 1000,
+  };
+
+  const getQuestCooldownMs = (difficulty: Quest['difficulty']) => QUEST_COOLDOWN_MS[difficulty] ?? QUEST_COOLDOWN_MS.medium;
 
   const getStartOfDayTimestamp = (value: Date | string | number) => {
     const date = new Date(value);
@@ -514,14 +652,28 @@ export function GameProvider({ children }: { children: ReactNode }) {
       ...allQuests.filter(q => !existingQuestIds.has(q.id)), // Add new question quests
       ...(state.availableQuests || []), // Keep existing quests
     ];
+
+    const defaultShopItems = createSampleShop();
+    const existingShopItems = state.shopInventory || [];
+    const existingShopItemIds = new Set(existingShopItems.map((item) => item.id));
+    const mergedShopInventory = [
+      ...existingShopItems,
+      ...defaultShopItems.filter((item) => !existingShopItemIds.has(item.id)),
+    ];
+
+    const normalizeQuestDates = (quest: Quest): Quest => ({
+      ...quest,
+      completedDate: quest.completedDate ? toDate(quest.completedDate) : undefined,
+      cooldownUntil: quest.cooldownUntil ? toDate(quest.cooldownUntil) : undefined,
+    });
     
     return {
       ...state,
       character: migratedCharacter,
-      availableQuests: mergedQuests.length > 0 ? mergedQuests : allQuests,
-      activeQuests: state.activeQuests || [],
-      completedQuests: state.completedQuests || [],
-      shopInventory: state.shopInventory && state.shopInventory.length > 0 ? state.shopInventory : createSampleShop(),
+      availableQuests: (mergedQuests.length > 0 ? mergedQuests : allQuests).map(normalizeQuestDates),
+      activeQuests: (state.activeQuests || []).map(normalizeQuestDates),
+      completedQuests: (state.completedQuests || []).map(normalizeQuestDates),
+      shopInventory: mergedShopInventory.length > 0 ? mergedShopInventory : defaultShopItems,
       availableChallenges: (state.availableChallenges && state.availableChallenges.length > 0
         ? state.availableChallenges
         : sampleChallenges
@@ -728,7 +880,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   // Listen for auth state changes
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'SIGNED_IN' && session?.user) {
+      if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session?.user) {
         try {
           const profile = await authApi.getProfile(session.user.id);
           const userData: User = {
@@ -953,6 +1105,26 @@ export function GameProvider({ children }: { children: ReactNode }) {
       }
     }
 
+    const latestShopItems = createSampleShop();
+    const currentShopItems = normalizedGameState.shopInventory || [];
+    if (currentShopItems.length === 0) {
+      normalizedGameState = {
+        ...normalizedGameState,
+        shopInventory: latestShopItems,
+      };
+      hasChanges = true;
+    } else {
+      const currentShopItemIds = new Set(currentShopItems.map((item) => item.id));
+      const missingShopItems = latestShopItems.filter((item) => !currentShopItemIds.has(item.id));
+      if (missingShopItems.length > 0) {
+        normalizedGameState = {
+          ...normalizedGameState,
+          shopInventory: [...currentShopItems, ...missingShopItems],
+        };
+        hasChanges = true;
+      }
+    }
+
     if (hasChanges) {
       const syncedGameState = {
         ...normalizedGameState,
@@ -1011,16 +1183,33 @@ export function GameProvider({ children }: { children: ReactNode }) {
   };
 
   const acceptQuest = (questId: string) => {
-    if (!gameState) return;
+    if (!gameState || !character) return;
     const quest = gameState.availableQuests.find(q => q.id === questId);
+    if (!quest) return;
+
+    const cooldownUntilMs = quest.cooldownUntil ? new Date(quest.cooldownUntil).getTime() : 0;
+    if (cooldownUntilMs > Date.now()) {
+      return;
+    }
+
     if (quest) {
       const updated = {
         ...gameState,
         availableQuests: gameState.availableQuests.filter(q => q.id !== questId),
-        activeQuests: [...gameState.activeQuests, quest],
+        activeQuests: [...gameState.activeQuests, { ...quest, cooldownUntil: undefined }],
       };
       setGameState(updated);
       saveGame();
+
+      if (user) {
+        (async () => {
+          try {
+            await questsApi.upsertQuest(character.id, { ...quest, completed: false, completedDate: undefined });
+          } catch (error) {
+            console.error('Error saving accepted quest state:', error);
+          }
+        })();
+      }
     }
   };
 
@@ -1060,7 +1249,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       const defaultTime = quest.difficulty === 'easy' ? 45 : quest.difficulty === 'medium' ? 60 : 90;
       const defaultScore = quest.difficulty === 'easy' ? 7000 : quest.difficulty === 'medium' ? 7500 : 8000;
       session = {
-        id: `session-${Date.now()}`,
+        id: crypto.randomUUID(),
         questId,
         questType: quest.type,
         completionTime: defaultTime,
@@ -1142,7 +1331,15 @@ export function GameProvider({ children }: { children: ReactNode }) {
       newActivity.stats.pace = '5:30 /km';
     }
 
-    const completedQuest = { ...quest, completed: true, completedDate: new Date() };
+    const completionTimestamp = new Date();
+    const completedQuest = { ...quest, completed: true, completedDate: completionTimestamp, cooldownUntil: undefined };
+    const cooldownUntil = new Date(completionTimestamp.getTime() + getQuestCooldownMs(quest.difficulty));
+    const cooledDownQuest = {
+      ...quest,
+      completed: false,
+      completedDate: undefined,
+      cooldownUntil,
+    };
     
     const activitiesWithCurrent = [newActivity, ...(character.activities || [])];
     const streakStats = calculateStreakStats(activitiesWithCurrent);
@@ -1171,8 +1368,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
     const updated = {
       ...gameState,
       character: updatedCharacter,
+      availableQuests: [...gameState.availableQuests.filter(q => q.id !== questId), cooledDownQuest],
       activeQuests: gameState.activeQuests.filter(q => q.id !== questId),
       completedQuests: [...gameState.completedQuests, completedQuest],
+      currentGameQuest: undefined,
     };
 
     setCharacter(updatedCharacter);
@@ -1182,12 +1381,14 @@ export function GameProvider({ children }: { children: ReactNode }) {
     if (user) {
       (async () => {
         try {
-          await Promise.all([
-            characterApi.updateCharacter(updatedCharacter.id, updatedCharacter),
+          // Persist core progression first so XP/level/gold are not lost if optional writes fail.
+          await characterApi.updateCharacter(updatedCharacter.id, updatedCharacter);
+
+          const writeResults = await Promise.allSettled([
             activitiesApi.addActivity(updatedCharacter.id, newActivity),
             gameSessionsApi.addGameSession(updatedCharacter.id, session),
             gameSessionsApi.updatePersonalBests(updatedCharacter.id, quest.type, personalBests[quest.type]),
-            questsApi.updateQuest(questId, { completed: true, completedDate: new Date() }),
+            questsApi.upsertQuest(updatedCharacter.id, completedQuest, { completed: true, completedDate: completionTimestamp }),
             leaderboardApi.addEntry(
               updatedCharacter.id,
               updatedCharacter.name,
@@ -1197,6 +1398,11 @@ export function GameProvider({ children }: { children: ReactNode }) {
               session.completionTime
             ),
           ]);
+
+          const failedWrites = writeResults.filter((result): result is PromiseRejectedResult => result.status === 'rejected');
+          if (failedWrites.length > 0) {
+            console.error('Some quest completion writes failed:', failedWrites.map((failure) => failure.reason));
+          }
 
           // Save new achievements if any
           const newAchievements = updatedCharacter.achievements.filter(
@@ -1409,17 +1615,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
   };
 
   const finishGame = (questId: string, sessionData: GameSession) => {
-    // Complete the quest with session data and clear the game state
+    // completeQuest handles clearing current game quest to avoid stale-state overwrites.
     completeQuest(questId, sessionData);
-    
-    if (gameState) {
-      const updated = {
-        ...gameState,
-        currentGameQuest: undefined,
-      };
-      setGameState(updated);
-      saveGame();
-    }
   };
 
   const loadGame = async () => {
@@ -2101,3 +2298,4 @@ export function useGame() {
   }
   return context;
 }
+

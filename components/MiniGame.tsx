@@ -117,7 +117,7 @@ function SprintMasterGame({ questId, onComplete, onCancel }: { questId: string; 
     else if (finalScore >= 4500) rank = 'C';
 
     const session: GameSession = {
-      id: `session-${Date.now()}`,
+      id: crypto.randomUUID(),
       questId,
       questType: 'fitness',
       completionTime,
@@ -352,7 +352,7 @@ function SprintCircuitGame({ questId, onComplete, onCancel }: { questId: string;
     else if (finalScore >= 5000) rank = 'C';
 
     const session: GameSession = {
-      id: `session-${Date.now()}`,
+      id: crypto.randomUUID(),
       questId,
       questType: 'fitness',
       completionTime,
@@ -526,7 +526,7 @@ function PowerLaneGame({ questId, onComplete, onCancel }: { questId: string; onC
     else if (finalScore >= 4500) rank = 'C';
 
     const session: GameSession = {
-      id: `session-${Date.now()}`,
+      id: crypto.randomUUID(),
       questId,
       questType: 'fitness',
       completionTime,
@@ -721,7 +721,7 @@ function TurboRushGame({ questId, onComplete, onCancel }: { questId: string; onC
     else if (finalScore >= 4500) rank = 'C';
 
     const session: GameSession = {
-      id: `session-${Date.now()}`,
+      id: crypto.randomUUID(),
       questId,
       questType: 'fitness',
       completionTime,
@@ -915,7 +915,7 @@ function CalmClickerGame({ questId, onComplete, onCancel }: { questId: string; o
 
     const totalClicks = perfect + good + misses;
     const session: GameSession = {
-      id: `session-${Date.now()}`,
+      id: crypto.randomUUID(),
       questId,
       questType: 'mindfulness',
       completionTime,
@@ -1129,7 +1129,7 @@ function MindMazeGame({ questId, onComplete, onCancel }: { questId: string; onCo
     else if (finalScore >= 4500) rank = 'C';
 
     const session: GameSession = {
-      id: `session-${Date.now()}`,
+      id: crypto.randomUUID(),
       questId,
       questType: 'mindfulness',
       completionTime,
@@ -1328,7 +1328,7 @@ function FlowStateGame({ questId, onComplete, onCancel }: { questId: string; onC
     else if (finalScore >= 4500) rank = 'C';
 
     const session: GameSession = {
-      id: `session-${Date.now()}`,
+      id: crypto.randomUUID(),
       questId,
       questType: 'mindfulness',
       completionTime,
@@ -1559,7 +1559,7 @@ function PlateBuilderGame({ questId, onComplete, onCancel }: { questId: string; 
     else if (finalScore >= 4500) rank = 'C';
 
     const session: GameSession = {
-      id: `session-${Date.now()}`,
+      id: crypto.randomUUID(),
       questId,
       questType: 'nutrition',
       completionTime,
@@ -1752,7 +1752,7 @@ function MacroStackerGame({ questId, onComplete, onCancel }: { questId: string; 
     else if (finalScore >= 4500) rank = 'C';
 
     const session: GameSession = {
-      id: `session-${Date.now()}`,
+      id: crypto.randomUUID(),
       questId,
       questType: 'nutrition',
       completionTime,
@@ -1980,7 +1980,7 @@ function KitchenGrandmasterGame({ questId, onComplete, onCancel }: { questId: st
     else if (finalScore >= 4500) rank = 'C';
 
     const session: GameSession = {
-      id: `session-${Date.now()}`,
+      id: crypto.randomUUID(),
       questId,
       questType: 'nutrition',
       completionTime,
@@ -2184,7 +2184,7 @@ function SheepStarterGame({ questId, onComplete, onCancel }: { questId: string; 
     else if (finalScore >= 4500) rank = 'C';
 
     const session: GameSession = {
-      id: `session-${Date.now()}`,
+      id: crypto.randomUUID(),
       questId,
       questType: 'sleep',
       completionTime,
@@ -2366,7 +2366,7 @@ function NightModeClearGame({ questId, onComplete, onCancel }: { questId: string
     else if (finalScore >= 5000) rank = 'C';
 
     const session: GameSession = {
-      id: `session-${Date.now()}`,
+      id: crypto.randomUUID(),
       questId,
       questType: 'sleep',
       completionTime,
@@ -2628,3 +2628,4 @@ export default function MiniGame({ quest, onComplete, onCancel }: MiniGameProps)
     </div>
   );
 }
+

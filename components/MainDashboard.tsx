@@ -150,6 +150,10 @@ export default function MainDashboard() {
 
   const hasActiveBuffs = totalXpMult > 1 || totalGoldMult > 1 || totalSpeed > 0 || totalAccuracy > 0;
 
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [currentView]);
+
   return (
     <div className="min-h-screen bg-background">
       <Navigation currentView={currentView} onViewChange={setCurrentView} />

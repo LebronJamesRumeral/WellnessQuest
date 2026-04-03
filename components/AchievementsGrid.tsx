@@ -189,7 +189,11 @@ export default function AchievementsGrid({ achievements, locked = [] }: Achievem
 
   return (
     <div className="space-y-6">
-      <Tabs defaultValue="all" className="w-full">
+      <Tabs
+        defaultValue="all"
+        className="w-full"
+        onValueChange={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+      >
         <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="all">All</TabsTrigger>
           <TabsTrigger value="unlocked">Unlocked ({unlockedAchievements.length})</TabsTrigger>

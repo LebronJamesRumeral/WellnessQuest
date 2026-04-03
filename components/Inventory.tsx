@@ -7,8 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { InventoryItem, Customization } from '@/lib/types';
-import { Sword, Shield, Gem, Wand2, Sparkles, Palette, Clock } from 'lucide-react';
-import CharacterPreview from './CharacterPreview';
+import { Sword, Shield, Gem, Wand2, Sparkles, Clock, Backpack, Package, ShieldCheck } from 'lucide-react';
 
 interface InventoryProps {
   fullView?: boolean;
@@ -220,32 +219,60 @@ export default function Inventory({ fullView = false }: InventoryProps) {
   const equipmentItems = character.inventory.filter(i => ['weapon', 'armor', 'accessory'].includes(i.type));
   const customizationItems = character.inventory.filter(i => i.type === 'customization');
   const consumableItems = character.inventory.filter(i => i.type === 'consumable');
+  const equippedCount = Object.values(character.equippedItems || {}).filter(Boolean).length;
+
+  const renderEmptyState = (icon: React.ComponentType<{ className?: string }>, message: string) => (
+    <Card>
+      <CardContent className="pt-6 text-center py-12 text-muted-foreground">
+        {React.createElement(icon, { className: 'h-12 w-12 mx-auto mb-3 opacity-20' })}
+        <p>{message}</p>
+      </CardContent>
+    </Card>
+  );
 
   if (fullView) {
     return (
       <div className="space-y-6">
-        {/* Character Preview Section */}
-        <Card className="bg-gradient-to-br from-primary/5 to-secondary/5">
+        {/* Backpack Overview */}
+        <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-secondary/5">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Palette className="h-5 w-5" />
-              Character Preview
+              <Backpack className="h-5 w-5 text-primary" />
+              Backpack Overview
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <CharacterPreview character={character} />
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="rounded-lg border border-border bg-background/80 p-3">
+                <div className="text-xs text-muted-foreground">Total Items</div>
+                <div className="text-xl font-bold text-foreground">{character.inventory.length}</div>
+              </div>
+              <div className="rounded-lg border border-border bg-background/80 p-3">
+                <div className="text-xs text-muted-foreground">Equipped</div>
+                <div className="text-xl font-bold text-primary">{equippedCount} / 3</div>
+              </div>
+              <div className="rounded-lg border border-border bg-background/80 p-3">
+                <div className="text-xs text-muted-foreground">Equipment</div>
+                <div className="text-xl font-bold text-secondary">{equipmentItems.length}</div>
+              </div>
+              <div className="rounded-lg border border-border bg-background/80 p-3">
+                <div className="text-xs text-muted-foreground">Consumables</div>
+                <div className="text-xl font-bold text-accent">{consumableItems.length}</div>
+              </div>
+            </div>
           </CardContent>
         </Card>
 
-        {/* Equipped Items */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Sword className="h-5 w-5 text-primary" />
-              Currently Equipped ({Object.values(character.equippedItems || {}).filter(v => v).length} / 3)
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="grid md:grid-cols-3 gap-4">
+        <div className="grid xl:grid-cols-3 gap-6 items-start">
+          {/* Equipped Items */}
+          <Card className="xl:col-span-2">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <ShieldCheck className="h-5 w-5 text-primary" />
+                Currently Equipped ({equippedCount} / 3)
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="grid md:grid-cols-3 gap-4">
             <div className={`rounded-lg p-4 border-2 space-y-3 ${character.equippedItems?.weapon ? 'border-primary/50 bg-primary/10' : 'border-border bg-muted/30'}`}>
               <div className="flex items-center gap-2">
                 <Sword size={20} className={character.equippedItems?.weapon ? 'text-primary' : 'text-muted-foreground'} />
@@ -320,18 +347,18 @@ export default function Inventory({ fullView = false }: InventoryProps) {
                 <div className="text-sm text-muted-foreground">Empty</div>
               )}
             </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
 
-        {/* Active Buffs Summary */}
-        <Card className="border-accent/30 bg-accent/5">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-accent">
-              <Sparkles className="h-5 w-5" />
-              Active Equipment Bonuses
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
+          {/* Active Buffs Summary */}
+          <Card className="border-accent/30 bg-accent/5">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-accent">
+                <Sparkles className="h-5 w-5" />
+                Active Bonuses
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
             <div className="grid md:grid-cols-2 gap-4">
               {(() => {
                 const equippedItemIds = Object.values(character.equippedItems || {}).filter(Boolean) as string[];
@@ -396,26 +423,26 @@ export default function Inventory({ fullView = false }: InventoryProps) {
                 );
               })()}
             </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </div>
 
-        {/* Inventory Tabs */}
-        <Tabs defaultValue="all" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-4">
+        {/* Item Library */}
+        <Tabs
+          defaultValue="all"
+          className="space-y-4"
+          onValueChange={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+        >
+          <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 gap-2 h-auto p-1">
             <TabsTrigger value="all">All ({character.inventory.length})</TabsTrigger>
             <TabsTrigger value="equipment">Equipment ({equipmentItems.length})</TabsTrigger>
-            <TabsTrigger value="customization">Customizables ({customizationItems.length})</TabsTrigger>
+            <TabsTrigger value="customization">Cosmetics ({customizationItems.length})</TabsTrigger>
             <TabsTrigger value="consumables">Consumables ({consumableItems.length})</TabsTrigger>
           </TabsList>
 
           <TabsContent value="all" className="space-y-4">
             {character.inventory.length === 0 ? (
-              <Card>
-                <CardContent className="pt-6 text-center py-12 text-muted-foreground">
-                  <Wand2 className="h-12 w-12 mx-auto mb-3 opacity-20" />
-                  <p>No items yet. Visit the shop to get started!</p>
-                </CardContent>
-              </Card>
+              renderEmptyState(Package, 'No items yet. Visit the shop to get started!')
             ) : (
               <div className="grid md:grid-cols-2 gap-4">
                 {character.inventory.map(item => renderItemCard(item))}
@@ -425,12 +452,7 @@ export default function Inventory({ fullView = false }: InventoryProps) {
 
           <TabsContent value="equipment" className="space-y-4">
             {equipmentItems.length === 0 ? (
-              <Card>
-                <CardContent className="pt-6 text-center py-12 text-muted-foreground">
-                  <Sword className="h-12 w-12 mx-auto mb-3 opacity-20" />
-                  <p>No equipment items. Buy some gear from the shop!</p>
-                </CardContent>
-              </Card>
+              renderEmptyState(Sword, 'No equipment items. Buy some gear from the shop!')
             ) : (
               <div className="grid md:grid-cols-2 gap-4">
                 {equipmentItems.map(item => renderItemCard(item))}
@@ -440,12 +462,7 @@ export default function Inventory({ fullView = false }: InventoryProps) {
 
           <TabsContent value="customization" className="space-y-4">
             {customizationItems.length === 0 ? (
-              <Card>
-                <CardContent className="pt-6 text-center py-12 text-muted-foreground">
-                  <Sparkles className="h-12 w-12 mx-auto mb-3 opacity-20" />
-                  <p>No customizations yet. Find cosmetic items in the shop!</p>
-                </CardContent>
-              </Card>
+              renderEmptyState(Sparkles, 'No customizations yet. Find cosmetic items in the shop!')
             ) : (
               <div className="grid md:grid-cols-2 gap-4">
                 {customizationItems.map(item => renderItemCard(item))}
@@ -455,12 +472,7 @@ export default function Inventory({ fullView = false }: InventoryProps) {
 
           <TabsContent value="consumables" className="space-y-4">
             {consumableItems.length === 0 ? (
-              <Card>
-                <CardContent className="pt-6 text-center py-12 text-muted-foreground">
-                  <Wand2 className="h-12 w-12 mx-auto mb-3 opacity-20" />
-                  <p>No consumables. Get some potions and power-ups!</p>
-                </CardContent>
-              </Card>
+              renderEmptyState(Wand2, 'No consumables. Get some potions and power-ups!')
             ) : (
               <div className="grid md:grid-cols-2 gap-4">
                 {consumableItems.map(item => renderItemCard(item))}

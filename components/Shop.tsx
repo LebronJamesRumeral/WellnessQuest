@@ -156,7 +156,11 @@ export default function Shop() {
       </Card>
 
       {/* Shop Tabs */}
-      <Tabs defaultValue="all" className="space-y-4">
+      <Tabs
+        defaultValue="all"
+        className="space-y-4"
+        onValueChange={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+      >
         <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="all">All Wares ({gameState.shopInventory.length})</TabsTrigger>
           <TabsTrigger value="equipment">Battle Gear ({equipmentItems.length})</TabsTrigger>
