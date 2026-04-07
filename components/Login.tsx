@@ -5,6 +5,7 @@ import { useGame } from '@/lib/context';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
+import BrandMark from '@/components/BrandMark';
 import { AlertCircle, Scroll, Zap, Users, Heart, Sparkles, Sword } from 'lucide-react';
 
 export default function Login() {
@@ -176,11 +177,8 @@ export default function Login() {
         <div className="w-full max-w-md mx-auto lg:mx-0 space-y-5 sm:space-y-8">
           {/* Header - Mobile Only */}
           <div className="lg:hidden text-center space-y-3 pt-1">
-            <div 
-              className="inline-flex items-center justify-center w-16 h-16 rounded-xl shadow-sm"
-              style={{ backgroundColor: '#FEB05D' }}
-            >
-              <Scroll className="w-8 h-8 text-white" />
+            <div className="flex justify-center">
+              <BrandMark size="lg" />
             </div>
             <h1 
               className="text-3xl sm:text-4xl font-bold leading-tight"

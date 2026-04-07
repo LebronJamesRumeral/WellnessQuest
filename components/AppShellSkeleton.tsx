@@ -2,6 +2,7 @@
 
 import { Skeleton } from '@/components/ui/skeleton';
 import { Calendar, Bell, Moon, User, Shield, Home, Activity, Trophy, Scroll, Backpack, ShoppingCart, BarChart3 } from 'lucide-react';
+import BrandMark from '@/components/BrandMark';
 
 function SkeletonStatCard() {
   return (
@@ -46,11 +47,8 @@ function StaticHeader() {
         <div className="container mx-auto px-4">
           <div className="flex h-16 items-center justify-between gap-6">
             <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-xl bg-primary text-primary-foreground flex items-center justify-center font-bold shadow-sm">
-                W
-              </div>
-              <div className="leading-tight">
-                <div className="text-sm font-bold text-foreground">WellnessQuest</div>
+              <BrandMark size="md" showLabel labelClassName="text-sm leading-tight" />
+              <div className="leading-tight hidden">
                 <div className="text-xs text-muted-foreground">Embark on Your Epic Wellness Adventure</div>
               </div>
             </div>
@@ -88,11 +86,8 @@ function StaticHeader() {
       <div className="md:hidden border-b bg-background/95 backdrop-blur sticky top-0 z-40">
         <div className="flex h-14 items-center justify-between px-4">
           <div className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-lg bg-primary text-primary-foreground flex items-center justify-center font-bold text-sm">W</div>
-            <div>
-              <div className="text-sm font-bold text-foreground leading-none">WellnessQuest</div>
-              <div className="text-[10px] text-muted-foreground">Loading your realm</div>
-            </div>
+            <BrandMark size="sm" showLabel labelClassName="text-sm leading-none" />
+            <div className="text-[10px] text-muted-foreground">Loading your realm</div>
           </div>
 
           <div className="flex items-center gap-2">

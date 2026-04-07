@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useGame } from '@/lib/context';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import BrandMark from '@/components/BrandMark';
 import { Sword, Gamepad2, Star, Coins, Trophy, Shield, Sparkles } from 'lucide-react';
 import OnboardingSurvey from './OnboardingSurvey';
 import { QuestType } from '@/lib/types';
@@ -33,10 +34,9 @@ export default function CharacterCreation() {
         <div className="w-full max-w-md">
           <div className="space-y-6">
             <div className="text-center space-y-2">
-              <h1 className="text-4xl font-bold text-primary flex items-center justify-center gap-2">
-                <Sword className="w-10 h-10" />
-                WellnessQuest
-              </h1>
+              <div className="flex justify-center">
+                <BrandMark size="lg" showLabel labelClassName="text-4xl text-primary" />
+              </div>
               <p className="text-muted-foreground">Your legendary adventure awaits</p>
             </div>
 

@@ -13,20 +13,7 @@ export const metadata: Metadata = {
   description: 'Transform your wellness journey into an epic adventure! Complete legendary quests, conquer challenges, earn glorious achievements, and level up your hero in this gamified wellness experience.',
   generator: 'v0.app',
   icons: {
-    icon: [
-      {
-        url: '/icon-light-32x32.png',
-        media: '(prefers-color-scheme: light)',
-      },
-      {
-        url: '/icon-dark-32x32.png',
-        media: '(prefers-color-scheme: dark)',
-      },
-      {
-        url: '/icon.svg',
-        type: 'image/svg+xml',
-      },
-    ],
+    icon: '/icon.png',
     apple: '/apple-icon.png',
   },
 }
