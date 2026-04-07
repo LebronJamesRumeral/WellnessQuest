@@ -24,6 +24,7 @@ import {
   Moon
 } from 'lucide-react';
 import { format } from 'date-fns';
+import { XP_PER_LEVEL, getLevelProgress } from '@/lib/progression';
 
 export default function Profile() {
   const { character, gameState } = useGame();
@@ -36,8 +37,8 @@ export default function Profile() {
   const longestStreak = character.longestStreak || 0;
   
   const memberSince = format(new Date(character.joinedDate), 'MMMM yyyy');
-  const nextLevelXP = character.stats.level * 1000;
-  const levelProgress = (character.stats.experience / nextLevelXP) * 100;
+  const nextLevelXP = XP_PER_LEVEL;
+  const levelProgress = getLevelProgress(character.stats.experience);
 
   // Get weekly stats
   const weekAgo = new Date();

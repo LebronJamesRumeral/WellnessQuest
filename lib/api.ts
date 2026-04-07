@@ -10,6 +10,7 @@ import {
   Quest,
   QuestType,
 } from './types';
+import { getTotalXp } from './progression';
 
 // ============== Authentication ==============
 
@@ -82,6 +83,11 @@ export const authApi = {
   async signOut() {
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
+  },
+
+  async getSession() {
+    const { data: { session } } = await supabase.auth.getSession();
+    return session;
   },
 
   async getCurrentUser() {
@@ -328,8 +334,8 @@ export const inventoryApi = {
     }));
   },
 
-  async addItem(characterId: string, item: Omit<InventoryItem, 'id'>) {
-    const { error } = await supabase
+  async addItem(characterId: string, item: Omit<InventoryItem, 'id'>): Promise<string> {
+    const { data, error } = await supabase
       .from('inventory_items')
       .insert({
         character_id: characterId,
@@ -341,9 +347,12 @@ export const inventoryApi = {
         description: item.description,
         stats: item.stats,
         buffs: item.buffs,
-      });
+      })
+      .select('id')
+      .single();
 
     if (error) throw error;
+    return data.id;
   },
 
   async updateItemQuantity(itemId: string, quantity: number) {
@@ -991,7 +1000,11 @@ export const leaderboardApi = {
   },
 
   async getHallOfChampions(limit: number = 100) {
-    const [{ data: characters, error: charactersError }, { data: profiles, error: profilesError }] = await Promise.all([
+    const [
+      { data: characters, error: charactersError },
+      { data: profiles, error: profilesError },
+      { data: achievements, error: achievementsError },
+    ] = await Promise.all([
       supabase
         .from('characters')
         .select('id, user_id, name, level, experience, quests_completed, current_streak, current_combo_streak')
@@ -1000,9 +1013,15 @@ export const leaderboardApi = {
         .from('profiles')
         .select('user_id, username')
         .limit(limit * 5),
+      supabase
+        .from('achievements')
+        .select('character_id, unlocked_date')
+        .not('unlocked_date', 'is', null)
+        .limit(limit * 25),
     ]);
 
     if (charactersError) throw charactersError;
+    if (achievementsError) throw achievementsError;
 
     const profileMap = new Map<string, string>();
     if (!profilesError) {
@@ -1019,18 +1038,33 @@ export const leaderboardApi = {
       }
     });
 
-    const entries: Array<{ characterId: string; name: string; level: number; xp: number }> = [];
+    const trophyCountByCharacterId = new Map<string, number>();
+    (achievements || []).forEach((achievement: any) => {
+      const currentCount = trophyCountByCharacterId.get(achievement.character_id) || 0;
+      trophyCountByCharacterId.set(achievement.character_id, currentCount + 1);
+    });
+
+    const entries: Array<{
+      characterId: string;
+      name: string;
+      level: number;
+      xp: number;
+      questsCompleted: number;
+      trophies: number;
+    }> = [];
 
     // Include users with profiles even if they have no character yet.
     profileMap.forEach((username, userId) => {
       const row = charactersByUser.get(userId);
       if (row) {
-        const xp = Math.max(0, ((row.level - 1) * 100) + row.experience);
+        const xp = getTotalXp(row.level, row.experience);
         entries.push({
           characterId: row.id,
           name: row.name || username,
           level: Math.max(1, row.level || 1),
           xp,
+          questsCompleted: row.quests_completed || 0,
+          trophies: trophyCountByCharacterId.get(row.id) || 0,
         });
       } else {
         entries.push({
@@ -1038,6 +1072,8 @@ export const leaderboardApi = {
           name: username,
           level: 1,
           xp: 0,
+          questsCompleted: 0,
+          trophies: 0,
         });
       }
     });
@@ -1045,12 +1081,14 @@ export const leaderboardApi = {
     // Fallback for any character rows where profile query is restricted.
     if (entries.length === 0) {
       (characters || []).forEach((row: any) => {
-        const xp = Math.max(0, ((row.level - 1) * 100) + row.experience);
+        const xp = getTotalXp(row.level, row.experience);
         entries.push({
           characterId: row.id,
           name: row.name,
           level: Math.max(1, row.level || 1),
           xp,
+          questsCompleted: row.quests_completed || 0,
+          trophies: trophyCountByCharacterId.get(row.id) || 0,
         });
       });
     }

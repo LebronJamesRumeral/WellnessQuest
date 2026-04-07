@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useGame } from '@/lib/context';
 import { leaderboardApi } from '@/lib/api';
+import { XP_PER_LEVEL, getLevelProgress, getTotalXp } from '@/lib/progression';
 import StatsOverview from './StatsOverview';
 import ActivityFeed from './ActivityFeed';
 import AchievementsGrid from './AchievementsGrid';
@@ -13,6 +14,7 @@ import Shop from './Shop';
 import Profile from './Profile';
 import StatsView from './StatsView';
 import Navigation from './Navigation';
+import ViewTransitionSkeleton from './ViewTransitionSkeleton';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -20,12 +22,49 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Trophy, Crown, TrendingUp, Flame, Target, Zap, Coins, Sparkles, Swords, Map as MapIcon, Scroll, Backpack, Store, BarChart3 } from 'lucide-react';
 
 type ViewType = 'dashboard' | 'activities' | 'challenges' | 'achievements' | 'quests' | 'inventory' | 'shop' | 'profile' | 'stats';
+type TransitionView = 'activities' | 'achievements' | 'quests' | 'stats';
+
+const TRANSITION_VIEWS: TransitionView[] = ['activities', 'achievements', 'quests', 'stats'];
+
+function isTransitionView(view: ViewType): view is TransitionView {
+  return TRANSITION_VIEWS.includes(view as TransitionView);
+}
 
 export default function MainDashboard() {
   const [currentView, setCurrentView] = useState<ViewType>('dashboard');
+  const [transitionView, setTransitionView] = useState<TransitionView | null>(null);
   const [showActivitiesModal, setShowActivitiesModal] = useState(false);
-  const [hallEntries, setHallEntries] = useState<Array<{ characterId: string; name: string; level: number; xp: number }>>([]);
+  const [showWeeklyConquestsModal, setShowWeeklyConquestsModal] = useState(false);
+  const [hallEntries, setHallEntries] = useState<Array<{
+    characterId: string;
+    name: string;
+    level: number;
+    xp: number;
+    questsCompleted: number;
+    trophies: number;
+  }>>([]);
   const { character, gameState, giveKudos, joinChallenge } = useGame();
+  const transitionTimerRef = useRef<number | null>(null);
+
+  const handleViewChange = (view: ViewType) => {
+    if (transitionTimerRef.current !== null) {
+      window.clearTimeout(transitionTimerRef.current);
+      transitionTimerRef.current = null;
+    }
+
+    setCurrentView(view);
+
+    if (isTransitionView(view)) {
+      setTransitionView(view);
+      transitionTimerRef.current = window.setTimeout(() => {
+        setTransitionView(null);
+        transitionTimerRef.current = null;
+      }, 1400);
+      return;
+    }
+
+    setTransitionView(null);
+  };
 
   if (!character) return null;
 
@@ -86,9 +125,9 @@ export default function MainDashboard() {
   })();
   const weeklyGoal = character.weeklyGoal || 7;
   const weeklyGoalProgress = Math.min((weeklyProgress / weeklyGoal) * 100, 100);
-  const nextLevelXP = character.stats.level * 100;
-
-  const playerXp = Math.max(0, ((character.stats.level - 1) * 100) + character.stats.experience);
+  const nextLevelXP = XP_PER_LEVEL;
+  const playerXp = getTotalXp(character.stats.level, character.stats.experience);
+  const xpProgress = getLevelProgress(character.stats.experience);
 
   useEffect(() => {
     let mounted = true;
@@ -112,11 +151,27 @@ export default function MainDashboard() {
     };
   }, []);
 
-  const mergedLeaderboard = new Map<string, { name: string; level: number; xp: number }>();
-  [...hallEntries, { characterId: character.id, name: character.name, level: character.stats.level, xp: playerXp }].forEach((entry) => {
+  const mergedLeaderboard = new Map<string, { name: string; level: number; xp: number; questsCompleted: number; trophies: number }>();
+  [
+    ...hallEntries,
+    {
+      characterId: character.id,
+      name: character.name,
+      level: character.stats.level,
+      xp: playerXp,
+      questsCompleted: character.questsCompleted || 0,
+      trophies: unlockedAchievements.length,
+    },
+  ].forEach((entry) => {
     const existing = mergedLeaderboard.get(entry.characterId);
     if (!existing || entry.xp > existing.xp) {
-      mergedLeaderboard.set(entry.characterId, { name: entry.name, level: entry.level, xp: entry.xp });
+      mergedLeaderboard.set(entry.characterId, {
+        name: entry.name,
+        level: entry.level,
+        xp: entry.xp,
+        questsCompleted: entry.questsCompleted,
+        trophies: entry.trophies,
+      });
     }
   });
 
@@ -128,6 +183,8 @@ export default function MainDashboard() {
       name: entry.name,
       level: entry.level,
       xp: entry.xp,
+      questsCompleted: entry.questsCompleted,
+      trophies: entry.trophies,
     }));
 
   // Calculate active equipment buffs
@@ -154,14 +211,83 @@ export default function MainDashboard() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [currentView]);
 
+  useEffect(() => {
+    return () => {
+      if (transitionTimerRef.current !== null) {
+        window.clearTimeout(transitionTimerRef.current);
+      }
+    };
+  }, []);
+
+  const isTransitioning = transitionView === currentView && transitionView !== null;
+
+  const weeklyConquestsContent = (
+    <Card className="border-primary/20 bg-linear-to-br from-primary/10 via-card to-secondary/10">
+      <CardHeader className="py-3 md:py-6 px-3 md:px-6">
+        <CardTitle className="flex flex-col md:flex-row items-start md:items-center justify-between gap-2 text-lg md:text-base">
+          <span className="flex items-center gap-2">
+            <Swords className="w-5 h-5" />
+            Weekly Conquests
+          </span>
+          <span className="text-xs md:text-sm text-muted-foreground break-all">{weeklyProgress} / {weeklyGoal} days</span>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3 md:space-y-4 px-3 md:px-6 pb-3 md:pb-6">
+        {character.activities && character.activities.length > 0 ? (
+          <>
+            <div className="grid grid-cols-7 gap-1 md:gap-2">
+              {weeklyCompletion.map((day) => (
+                <div key={day.label} className="text-center">
+                  <div className="text-xs font-semibold text-muted-foreground mb-1 md:mb-2">{day.label}</div>
+                  <div
+                    className={`h-8 md:h-10 rounded-md flex items-center justify-center text-xs md:text-sm font-bold ${
+                      day.completed
+                        ? 'bg-secondary/20 text-secondary border border-secondary/30'
+                        : day.isFuture
+                          ? 'bg-card/40 border border-border/50 text-muted-foreground/60'
+                          : 'bg-muted border border-border text-muted-foreground'
+                    }`}
+                  >
+                    {day.completed ? '✓' : '·'}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="space-y-1 md:space-y-2">
+              <Progress value={weeklyGoalProgress} className="h-2" />
+              <p className="text-xs md:text-sm text-muted-foreground">
+                <span className="font-semibold text-foreground">{weeklyProgress}</span> / <span className="font-semibold text-foreground">{weeklyGoal}</span> days
+              </p>
+            </div>
+          </>
+        ) : (
+          <div className="text-center py-8">
+            <Target className="h-12 w-12 mx-auto mb-3 text-muted-foreground/50" />
+            <p className="text-sm text-muted-foreground">
+              Embark on your first quest and begin your legendary adventure!
+            </p>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+
   return (
     <div className="min-h-screen bg-background">
-      <Navigation currentView={currentView} onViewChange={setCurrentView} />
+      <Navigation currentView={currentView} onViewChange={handleViewChange} />
       
       <main className="container mx-auto px-4 py-6 pb-20 max-w-7xl">
+        {isTransitioning && (
+          <div className="space-y-6">
+            <ViewTransitionSkeleton view={transitionView || 'quests'} />
+          </div>
+        )}
+
+        {!isTransitioning && (
+          <>
         {currentView === 'dashboard' && (
           <div className="space-y-6">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="space-y-1">
                 <h1 className="text-3xl font-bold flex items-center gap-2">
                   <Swords className="w-8 h-8" />
@@ -169,10 +295,16 @@ export default function MainDashboard() {
                 </h1>
                 <p className="text-muted-foreground">Welcome back, {character.name}! Your legendary journey continues.</p>
               </div>
-              <Button onClick={() => setShowActivitiesModal(true)} variant="outline" size="sm" className="h-auto py-2 px-3">
-                <span className="hidden sm:inline text-sm">Quest History</span>
-                <span className="sm:hidden text-xs">History</span>
-              </Button>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button onClick={() => setShowActivitiesModal(true)} variant="outline" size="sm" className="h-auto py-2 px-3">
+                  <span className="hidden sm:inline text-sm">Quest History</span>
+                  <span className="sm:hidden text-xs">History</span>
+                </Button>
+                <Button onClick={() => setShowWeeklyConquestsModal(true)} variant="outline" size="sm" className="h-auto py-2 px-3">
+                  <span className="hidden sm:inline text-sm">Weekly Conquests</span>
+                  <span className="sm:hidden text-xs">Weekly</span>
+                </Button>
+              </div>
             </div>
 
             <div className="grid gap-3 md:gap-4 grid-cols-2 sm:grid-cols-2 lg:grid-cols-5">
@@ -214,7 +346,7 @@ export default function MainDashboard() {
                   <p className="text-xl md:text-2xl font-bold">{unlockedAchievements.length}</p>
                 </CardContent>
               </Card>
-              <Card className="col-span-2 sm:col-span-1 border-accent/50 bg-gradient-to-br from-accent/10 to-accent/5">
+              <Card className="col-span-2 sm:col-span-1 border-accent/50 bg-linear-to-br from-accent/10 to-accent/5">
                 <CardContent className="py-3 px-3 md:pt-4 md:pb-4 space-y-1">
                   <div className="flex items-center gap-1 text-accent text-xs md:text-sm font-semibold">
                     <Sparkles className="h-3 w-3 md:h-4 md:w-4" />
@@ -239,7 +371,7 @@ export default function MainDashboard() {
 
             <div className="grid gap-4 md:gap-6 grid-cols-1 lg:grid-cols-12">
               <div className="space-y-4 md:space-y-6 lg:col-span-8">
-                <Card className="border-primary/20 bg-gradient-to-br from-primary/10 via-card to-secondary/10">
+                <Card className="border-primary/20 bg-linear-to-br from-primary/10 via-card to-secondary/10">
                   <CardHeader className="py-3 md:py-6 px-3 md:px-6">
                     <CardTitle className="flex flex-col md:flex-row items-start md:items-center justify-between gap-1 md:gap-2 text-lg md:text-base">
                       <span className="flex items-center gap-2">
@@ -250,7 +382,7 @@ export default function MainDashboard() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-3 md:space-y-4 px-3 md:px-6 pb-3 md:pb-6">
-                    <Progress value={(character.stats.experience / nextLevelXP) * 100} className="h-2 md:h-3" />
+                    <Progress value={xpProgress} className="h-2 md:h-3" />
                     <div className="grid grid-cols-3 gap-2 md:gap-3 text-sm">
                       <div className="rounded-md border border-border p-2 md:p-3">
                         <div className="text-xs md:text-sm text-muted-foreground">Epic Streak</div>
@@ -268,55 +400,6 @@ export default function MainDashboard() {
                     <Button onClick={() => setCurrentView('profile')} variant="outline" className="w-full text-sm md:text-base">
                       View Hero Profile
                     </Button>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader className="py-3 md:py-6 px-3 md:px-6">
-                    <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-2 md:gap-4">
-                      <CardTitle className="flex items-center gap-2 text-lg md:text-base">
-                        <Swords className="h-4 w-4 md:h-5 md:w-5 text-secondary" />
-                        <span className="hidden md:inline">Weekly Conquests</span>
-                        <span className="md:hidden">Weekly</span>
-                      </CardTitle>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-3 md:space-y-4 px-3 md:px-6 pb-3 md:pb-6">
-                    {character.activities && character.activities.length > 0 ? (
-                      <>
-                        <div className="grid grid-cols-7 gap-1 md:gap-2">
-                          {weeklyCompletion.map((day) => (
-                            <div key={day.label} className="text-center">
-                              <div className="text-xs font-semibold text-muted-foreground mb-1 md:mb-2">{day.label}</div>
-                              <div
-                                className={`h-8 md:h-10 rounded-md flex items-center justify-center text-xs md:text-sm font-bold ${
-                                  day.completed
-                                    ? 'bg-secondary/20 text-secondary border border-secondary/30'
-                                    : day.isFuture
-                                      ? 'bg-card/40 border border-border/50 text-muted-foreground/60'
-                                      : 'bg-muted border border-border text-muted-foreground'
-                                }`}
-                              >
-                                {day.completed ? '✓' : '·'}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                        <div className="space-y-1 md:space-y-2">
-                          <Progress value={weeklyGoalProgress} className="h-2" />
-                          <p className="text-xs md:text-sm text-muted-foreground">
-                            <span className="font-semibold text-foreground">{weeklyProgress}</span> / <span className="font-semibold text-foreground">{weeklyGoal}</span> days
-                          </p>
-                        </div>
-                      </>
-                    ) : (
-                      <div className="text-center py-8">
-                        <Target className="h-12 w-12 mx-auto mb-3 text-muted-foreground/50" />
-                        <p className="text-sm text-muted-foreground">
-                          Embark on your first quest and begin your legendary adventure!
-                        </p>
-                      </div>
-                    )}
                   </CardContent>
                 </Card>
 
@@ -367,7 +450,7 @@ export default function MainDashboard() {
                           <div className="font-bold w-4 md:w-5 text-center text-xs md:text-sm">{player.rank === 1 ? '🥇' : player.rank === 2 ? '🥈' : player.rank === 3 ? '🥉' : player.rank}</div>
                           <div className="min-w-0">
                             <div className="font-semibold truncate text-xs md:text-sm">{player.name}</div>
-                            <div className="text-xs text-muted-foreground">Lv{player.level}</div>
+                            <div className="text-xs text-muted-foreground">Lv{player.level} • {player.questsCompleted} Quests • {player.trophies} Trophies</div>
                           </div>
                         </div>
                         <div className="text-xs font-bold text-muted-foreground whitespace-nowrap ml-2">{player.xp} XP</div>
@@ -382,7 +465,7 @@ export default function MainDashboard() {
         )}
 
         <Dialog open={showActivitiesModal} onOpenChange={setShowActivitiesModal}>
-          <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto scrollbar-hide">
+          <DialogContent className="w-[min(96vw,88rem)] max-w-none max-h-[90vh] overflow-y-auto scrollbar-hide p-4 sm:p-6">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <Scroll className="w-5 h-5" />
@@ -395,6 +478,18 @@ export default function MainDashboard() {
               personalBests={character.personalBests}
               onKudos={giveKudos}
             />
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={showWeeklyConquestsModal} onOpenChange={setShowWeeklyConquestsModal}>
+          <DialogContent className="w-[min(96vw,88rem)] max-w-none max-h-[90vh] overflow-y-auto scrollbar-hide p-4 sm:p-6">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Swords className="w-5 h-5" />
+                Weekly Conquests
+              </DialogTitle>
+            </DialogHeader>
+            {weeklyConquestsContent}
           </DialogContent>
         </Dialog>
 
@@ -505,6 +600,9 @@ export default function MainDashboard() {
             </div>
             <StatsView />
           </div>
+        )}
+
+          </>
         )}
 
       </main>

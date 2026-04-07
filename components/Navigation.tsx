@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { useRouter } from 'next/navigation';
 import { useGame } from '@/lib/context';
 import { Button } from '@/components/ui/button';
 import { useTheme } from 'next-themes';
@@ -38,6 +39,7 @@ interface NavigationProps {
 export default function Navigation({ currentView, onViewChange }: NavigationProps) {
   const { character, logout } = useGame();
   const { theme, setTheme } = useTheme();
+  const router = useRouter();
 
   if (!character) return null;
 
@@ -128,7 +130,10 @@ export default function Navigation({ currentView, onViewChange }: NavigationProp
                   })}
                   <div className="border-t my-1" />
                   <DropdownMenuItem
-                    onClick={logout}
+                    onClick={async () => {
+                      await logout();
+                      router.replace('/login');
+                    }}
                     className="text-red-600 dark:text-red-400"
                   >
                     <LogOut className="h-4 w-4 mr-2" />
@@ -213,7 +218,10 @@ export default function Navigation({ currentView, onViewChange }: NavigationProp
                 })}
                 <div className="border-t my-1" />
                 <DropdownMenuItem
-                  onClick={logout}
+                  onClick={async () => {
+                    await logout();
+                    router.replace('/login');
+                  }}
                   className="text-red-600 dark:text-red-400"
                 >
                   <LogOut className="h-4 w-4 mr-2" />

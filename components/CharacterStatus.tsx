@@ -1,6 +1,7 @@
 'use client';
 
 import { Character } from '@/lib/types';
+import { XP_PER_LEVEL, getLevelProgress } from '@/lib/progression';
 
 interface CharacterStatusProps {
   character: Character;
@@ -9,7 +10,7 @@ interface CharacterStatusProps {
 export default function CharacterStatus({ character }: CharacterStatusProps) {
   const { stats } = character;
   const healthPercent = (stats.health / stats.maxHealth) * 100;
-  const expPercent = (stats.experience / 100) * 100;
+  const expPercent = getLevelProgress(stats.experience);
 
   return (
     <div className="card-elevated border rounded-xl p-8 space-y-8 glow-primary">
@@ -62,7 +63,7 @@ export default function CharacterStatus({ character }: CharacterStatusProps) {
         <div className="space-y-3">
           <div className="flex justify-between items-center">
             <span className="text-sm font-bold tracking-widest text-foreground">EXPERIENCE</span>
-            <span className="text-xs font-mono text-muted-foreground">{stats.experience} / 100</span>
+            <span className="text-xs font-mono text-muted-foreground">{stats.experience} / {XP_PER_LEVEL}</span>
           </div>
           <div className="progress-bar-glow">
             <div

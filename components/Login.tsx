@@ -55,7 +55,7 @@ export default function Login() {
 
   return (
     <div 
-      className="min-h-screen flex items-center justify-center p-4"
+      className="min-h-dvh flex items-center justify-center px-3 py-4 sm:p-4"
       style={{ backgroundColor: '#F5F2F2' }}
     >
       {/* Background decoration elements */}
@@ -74,7 +74,7 @@ export default function Login() {
         />
       </div>
 
-      <div className="w-full max-w-6xl relative z-10 grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-center">
+      <div className="w-full max-w-6xl relative z-10 grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-12 items-start lg:items-center">
         {/* LEFT SIDE - Details Panel */}
         <div className="hidden lg:flex flex-col justify-center space-y-8">
           {/* Logo and Title */}
@@ -113,7 +113,7 @@ export default function Login() {
             {/* Feature 1 */}
             <div className="flex gap-4">
               <div 
-                className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0"
+                className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
                 style={{ backgroundColor: '#5A7ACD' }}
               >
                 <Zap className="w-5 h-5 text-white" />
@@ -131,7 +131,7 @@ export default function Login() {
             {/* Feature 2 */}
             <div className="flex gap-4">
               <div 
-                className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0"
+                className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
                 style={{ backgroundColor: '#FEB05D' }}
               >
                 <Sparkles className="w-5 h-5 text-white" />
@@ -149,7 +149,7 @@ export default function Login() {
             {/* Feature 3 */}
             <div className="flex gap-4">
               <div 
-                className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0"
+                className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
                 style={{ backgroundColor: '#2B2A2A' }}
               >
                 <Users className="w-5 h-5 text-white" />
@@ -173,26 +173,29 @@ export default function Login() {
         </div>
 
         {/* RIGHT SIDE - Login Form */}
-        <div className="w-full max-w-md mx-auto lg:mx-0 space-y-8">
+        <div className="w-full max-w-md mx-auto lg:mx-0 space-y-5 sm:space-y-8">
           {/* Header - Mobile Only */}
-          <div className="lg:hidden text-center space-y-3">
+          <div className="lg:hidden text-center space-y-3 pt-1">
             <div 
-              className="inline-flex items-center justify-center w-20 h-20 rounded-xl"
+              className="inline-flex items-center justify-center w-16 h-16 rounded-xl shadow-sm"
               style={{ backgroundColor: '#FEB05D' }}
             >
-              <Scroll className="w-10 h-10 text-white" />
+              <Scroll className="w-8 h-8 text-white" />
             </div>
             <h1 
-              className="text-4xl font-bold"
+              className="text-3xl sm:text-4xl font-bold leading-tight"
               style={{ color: '#2B2A2A' }}
             >
               WellnessQuest
             </h1>
+            <p className="mx-auto max-w-[20rem] text-sm leading-relaxed" style={{ color: '#5A7ACD' }}>
+              Sign in on mobile with a cleaner, easier-to-read layout.
+            </p>
           </div>
 
           {/* Main Card */}
           <Card 
-            className="p-8 border-2 space-y-6"
+            className="rounded-3xl border-2 p-5 sm:p-8 space-y-5 sm:space-y-6 shadow-[0_12px_40px_rgba(0,0,0,0.10)]"
             style={{ borderColor: '#5A7ACD', backgroundColor: 'white', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}
           >
             {/* Error Alert */}
@@ -201,7 +204,7 @@ export default function Login() {
                 className="p-4 rounded-lg flex gap-3 items-start border"
                 style={{ backgroundColor: '#FEB05D', borderColor: '#FEB05D', color: '#2B2A2A' }}
               >
-                <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
                 <p className="text-sm font-medium">{error}</p>
               </div>
             )}
@@ -209,13 +212,13 @@ export default function Login() {
             {/* Form Title */}
             <div>
               <h2 
-                className="text-2xl font-bold mb-1"
+                className="text-xl sm:text-2xl font-bold mb-1"
                 style={{ color: '#2B2A2A' }}
               >
                 {isLogin ? 'Continue Your Adventure' : 'Begin Your Quest'}
               </h2>
               <p 
-                className="text-sm"
+                className="text-sm leading-relaxed"
                 style={{ color: '#5A7ACD' }}
               >
                 {isLogin 
@@ -226,9 +229,9 @@ export default function Login() {
             </div>
 
             {/* Form Fields */}
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4">
               <div>
-                <label style={{ color: '#2B2A2A' }} className="block text-sm font-bold mb-2">
+                <label style={{ color: '#2B2A2A' }} className="block text-xs sm:text-sm font-bold mb-2">
                   Email Address
                 </label>
                 <Input
@@ -237,14 +240,14 @@ export default function Login() {
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="your@email.com"
                   disabled={loading}
-                  className="w-full border-2 bg-white text-[#2B2A2A] placeholder:text-[#6D6969]"
+                  className="h-11 sm:h-12 w-full border-2 bg-white text-[#2B2A2A] placeholder:text-[#6D6969] text-sm sm:text-base"
                   style={authInputStyle}
                 />
               </div>
 
               {!isLogin && (
                 <div>
-                  <label style={{ color: '#2B2A2A' }} className="block text-sm font-bold mb-2">
+                  <label style={{ color: '#2B2A2A' }} className="block text-xs sm:text-sm font-bold mb-2">
                     Adventurer Name
                   </label>
                   <Input
@@ -253,14 +256,14 @@ export default function Login() {
                     onChange={(e) => setUsername(e.target.value)}
                     placeholder="What will heroes call you?"
                     disabled={loading}
-                    className="w-full border-2 bg-white text-[#2B2A2A] placeholder:text-[#6D6969]"
+                    className="h-11 sm:h-12 w-full border-2 bg-white text-[#2B2A2A] placeholder:text-[#6D6969] text-sm sm:text-base"
                     style={authInputStyle}
                   />
                 </div>
               )}
 
               <div>
-                <label style={{ color: '#2B2A2A' }} className="block text-sm font-bold mb-2">
+                <label style={{ color: '#2B2A2A' }} className="block text-xs sm:text-sm font-bold mb-2">
                   Password
                 </label>
                 <Input
@@ -269,14 +272,14 @@ export default function Login() {
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
                   disabled={loading}
-                  className="w-full border-2 bg-white text-[#2B2A2A] placeholder:text-[#6D6969]"
+                  className="h-11 sm:h-12 w-full border-2 bg-white text-[#2B2A2A] placeholder:text-[#6D6969] text-sm sm:text-base"
                   style={authInputStyle}
                 />
               </div>
 
               {!isLogin && (
                 <div>
-                  <label style={{ color: '#2B2A2A' }} className="block text-sm font-bold mb-2">
+                  <label style={{ color: '#2B2A2A' }} className="block text-xs sm:text-sm font-bold mb-2">
                     Confirm Password
                   </label>
                   <Input
@@ -285,7 +288,7 @@ export default function Login() {
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     placeholder="••••••••"
                     disabled={loading}
-                    className="w-full border-2 bg-white text-[#2B2A2A] placeholder:text-[#6D6969]"
+                    className="h-11 sm:h-12 w-full border-2 bg-white text-[#2B2A2A] placeholder:text-[#6D6969] text-sm sm:text-base"
                     style={authInputStyle}
                   />
                 </div>
@@ -294,17 +297,17 @@ export default function Login() {
               <Button
                 type="submit"
                 disabled={loading}
-                className="w-full py-3 font-bold text-white flex items-center justify-center gap-2 text-base rounded-lg transition-all hover:shadow-lg"
+                className="w-full h-11 sm:h-12 font-bold text-white flex items-center justify-center gap-2 text-sm sm:text-base rounded-xl transition-all hover:shadow-lg"
                 style={{ backgroundColor: '#5A7ACD' }}
               >
-                <Sparkles className="w-5 h-5" />
+                <Sparkles className="w-4 h-4 sm:w-5 sm:h-5" />
                 {loading ? 'Embarking...' : isLogin ? 'Enter the Realm' : 'Begin Your Adventure'}
               </Button>
             </form>
 
             {/* Toggle Login/Register */}
-            <div className="text-center pt-2">
-              <p style={{ color: '#2B2A2A' }} className="text-sm">
+            <div className="text-center pt-1 sm:pt-2">
+              <p style={{ color: '#2B2A2A' }} className="text-xs sm:text-sm leading-relaxed">
                 {isLogin ? "Don't have an account? " : 'Already have an account? '}
                 <button
                   type="button"
@@ -317,7 +320,7 @@ export default function Login() {
                     setConfirmPassword('');
                   }}
                   style={{ color: '#FEB05D' }}
-                  className="font-bold hover:opacity-75 transition"
+                  className="font-bold hover:opacity-75 transition whitespace-nowrap"
                 >
                   {isLogin ? 'Create Now' : 'Sign In'}
                 </button>
@@ -326,76 +329,8 @@ export default function Login() {
           </Card>
 
           {/* Mobile Info Section */}
-          <div className="lg:hidden space-y-4">
+          <div className="hidden lg:hidden space-y-3">
             <div className="border-t-2" style={{ borderColor: '#5A7ACD' }} />
-            
-            <div className="space-y-3">
-              <h3 
-                className="text-sm font-bold"
-                style={{ color: '#2B2A2A' }}
-              >
-                Your Adventure Awaits
-              </h3>
-              
-              <div className="space-y-3">
-                <div className="flex gap-3">
-                  <div 
-                    className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
-                    style={{ backgroundColor: '#5A7ACD' }}
-                  >
-                    <Zap className="w-4 h-4 text-white" />
-                  </div>
-                  <div>
-                    <p className="text-xs font-semibold" style={{ color: '#2B2A2A' }}>
-                      Epic Quests & Adventures
-                    </p>
-                    <p className="text-xs" style={{ color: '#5A7ACD' }}>
-                      Transform your wellness journey into legendary quests filled with rewards
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex gap-3">
-                  <div 
-                    className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
-                    style={{ backgroundColor: '#FEB05D' }}
-                  >
-                    <Sparkles className="w-4 h-4 text-white" />
-                  </div>
-                  <div>
-                    <p className="text-xs font-semibold" style={{ color: '#2B2A2A' }}>
-                      Personalized Quest Board
-                    </p>
-                    <p className="text-xs" style={{ color: '#5A7ACD' }}>
-                      AI-guided adventures crafted uniquely for your hero's journey
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex gap-3">
-                  <div 
-                    className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
-                    style={{ backgroundColor: '#2B2A2A' }}
-                  >
-                    <Users className="w-4 h-4 text-white" />
-                  </div>
-                  <div>
-                    <p className="text-xs font-semibold" style={{ color: '#2B2A2A' }}>
-                      Community & Challenges
-                    </p>
-                    <p className="text-xs" style={{ color: '#5A7ACD' }}>
-                      Compete in challenges and earn legendary achievements
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="border-t-2" style={{ borderColor: '#5A7ACD' }} />
-            
-            <p className="text-xs text-center" style={{ color: '#5A7ACD', lineHeight: '1.6' }}>
-              Your wellness journey awaits. Complete quests, level up your character, and unlock exclusive rewards. No microtransactions—just pure, health-driven adventure.
-            </p>
           </div>
         </div>
       </div>

@@ -1,4 +1,6 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+'use client';
+
+import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
 import { 
   Character, 
   Quest, 
@@ -16,7 +18,8 @@ import {
   QuestType,
   User
 } from './types';
-import { assessmentQuestions, sampleChallenges, gameTierChallenges, allAchievements, enhancedQuests, questionBasedQuests } from './gameData';
+import { assessmentQuestions, sampleChallenges, gameTierChallenges, allAchievements, enhancedQuests, questionBasedQuests, createPersonalizedStartingItem } from './gameData';
+import { applyExperienceGain } from './progression';
 import { supabase } from './supabase';
 import { 
   authApi, 
@@ -35,13 +38,14 @@ interface GameContextType {
   // Authentication
   user: User | null;
   isLoggedIn: boolean;
+  isAuthLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, username: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   // Game
   character: Character | null;
   gameState: GameState | null;
-  createCharacter: (name: string) => void;
+  createCharacter: (name: string, primaryWellnessStat?: 'fitness' | 'nutrition' | 'mindfulness' | 'sleep') => void;
   completeQuest: (questId: string, sessionData?: GameSession) => void;
   acceptQuest: (questId: string) => void;
   startGame: (questId: string) => void;
@@ -62,7 +66,7 @@ interface GameContextType {
   startChallenge: (challengeId: string) => void;
   completeChallenge: (challengeId: string, correctAnswers: number, totalQuestions: number) => void;
   claimTierChallengeReward: (challengeId: string) => void;
-  getEquipmentBuffs: () => EquipmentBuffs;
+  getEquipmentBuffs: (questType?: QuestType) => EquipmentBuffs;
   calculateRank: (score: number, type: QuestType) => 'S' | 'A' | 'B' | 'C' | 'D';
   saveGame: () => void;
   loadGame: () => void;
@@ -482,10 +486,12 @@ export function GameProvider({ children }: { children: ReactNode }) {
   // Authentication state
   const [user, setUser] = useState<User | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
   
   // Game state
   const [character, setCharacter] = useState<Character | null>(null);
   const [gameState, setGameState] = useState<GameState | null>(null);
+  const authHydrationInProgressRef = useRef(false);
 
   const toDate = (value: unknown, fallback: Date = new Date()) => {
     if (!value) return fallback;
@@ -507,6 +513,149 @@ export function GameProvider({ children }: { children: ReactNode }) {
     const date = new Date(value);
     date.setHours(0, 0, 0, 0);
     return date.getTime();
+  };
+
+  const hydrateAuthenticatedUser = async (
+    authUser: {
+      id: string;
+      email?: string | null;
+      created_at?: string;
+    },
+    fallbackUsername?: string,
+  ) => {
+    if (authHydrationInProgressRef.current) return;
+
+    authHydrationInProgressRef.current = true;
+    setIsAuthLoading(true);
+
+    try {
+      const profile = await authApi.getProfile(authUser.id);
+      const userData: User = {
+        id: authUser.id,
+        email: authUser.email || '',
+        username: profile.username || fallbackUsername || 'Hero',
+        createdAt: new Date(authUser.created_at || Date.now()),
+        lastLogin: new Date(),
+      };
+
+      setUser(userData);
+      setIsLoggedIn(true);
+
+      const characterData = await characterApi.getCharacter(authUser.id);
+      if (characterData) {
+        const [
+          inventory,
+          equippedItems,
+          equippedCustomizations,
+          achievements,
+          activities,
+          gameSessions,
+          personalBests,
+          challenges,
+          assessmentResult,
+          quests,
+        ] = await Promise.all([
+          inventoryApi.getInventory(characterData.id),
+          inventoryApi.getEquippedItems(characterData.id),
+          inventoryApi.getEquippedCustomizations(characterData.id),
+          achievementsApi.getAchievements(characterData.id),
+          activitiesApi.getActivities(characterData.id),
+          gameSessionsApi.getGameSessions(characterData.id),
+          gameSessionsApi.getPersonalBests(characterData.id),
+          challengesApi.getChallenges(characterData.id),
+          assessmentApi.getAssessmentResult(characterData.id),
+          questsApi.getQuests(characterData.id),
+        ]);
+
+        const fullCharacter: Character = {
+          ...characterData,
+          inventory,
+          equippedItems,
+          equippedCustomizations,
+          achievements,
+          activities,
+          gameSessions,
+          personalBests,
+          activeTierChallenges: challenges,
+          assessmentResult: assessmentResult ?? undefined,
+        };
+
+        const migratedCharacter = migrateCharacter(fullCharacter);
+        const focusCharacter = await backfillStarterFocusBuff(migratedCharacter);
+
+        const gameStateData: GameState = {
+          character: focusCharacter,
+          availableQuests: [...enhancedQuests, ...questionBasedQuests],
+          activeQuests: quests.filter(q => !q.completed),
+          completedQuests: quests.filter(q => q.completed),
+          shopInventory: createSampleShop(),
+          availableChallenges: sampleChallenges,
+          availableAchievements: allAchievements,
+          assessmentQuestions: assessmentQuestions,
+        };
+
+        const migratedGameState = migrateGameState(gameStateData, focusCharacter);
+        setCharacter(focusCharacter);
+        setGameState(migratedGameState);
+        return;
+      }
+
+      const autoCharacter = await characterApi.createCharacter(authUser.id, userData.username);
+      const starterChallenges = gameTierChallenges.filter(c => c.tier === 'daily').slice(0, 3);
+
+      await Promise.all(
+        starterChallenges.map(challenge => challengesApi.addChallenge(autoCharacter.id, challenge))
+      );
+
+      const populatedCharacter = {
+        ...autoCharacter,
+        activeTierChallenges: starterChallenges,
+      };
+
+      const allInitialQuests = [...enhancedQuests, ...questionBasedQuests];
+      const newGameState: GameState = {
+        character: populatedCharacter,
+        availableQuests: allInitialQuests,
+        activeQuests: [],
+        completedQuests: [],
+        shopInventory: createSampleShop(),
+        availableChallenges: sampleChallenges,
+        availableAchievements: allAchievements,
+        assessmentQuestions: assessmentQuestions,
+      };
+
+      const focusCharacter = await backfillStarterFocusBuff(populatedCharacter);
+      const focusGameState = {
+        ...newGameState,
+        character: focusCharacter,
+      };
+
+      setCharacter(focusCharacter);
+      setGameState(focusGameState);
+    } finally {
+      authHydrationInProgressRef.current = false;
+      setIsAuthLoading(false);
+    }
+  };
+
+  const bootstrapAuthState = async () => {
+    if (authHydrationInProgressRef.current) return;
+
+    try {
+      const session = await authApi.getSession();
+      if (session?.user) {
+        await hydrateAuthenticatedUser(session.user, session.user.user_metadata?.username as string | undefined);
+      } else {
+        setUser(null);
+        setIsLoggedIn(false);
+        setCharacter(null);
+        setGameState(null);
+        setIsAuthLoading(false);
+      }
+    } catch (error) {
+      console.error('Auth bootstrap error:', error);
+      setIsAuthLoading(false);
+    }
   };
 
   const calculateStreakStats = (activities: Activity[]) => {
@@ -586,6 +735,34 @@ export function GameProvider({ children }: { children: ReactNode }) {
     };
   };
 
+  const inferPrimaryWellnessStat = (char: Character): 'fitness' | 'nutrition' | 'mindfulness' | 'sleep' => {
+    if (char.primaryWellnessStat) {
+      return char.primaryWellnessStat;
+    }
+
+    if (char.assessmentResult) {
+      return Object.entries(char.assessmentResult.scores)
+        .sort(([, left], [, right]) => right - left)[0][0] as 'fitness' | 'nutrition' | 'mindfulness' | 'sleep';
+    }
+
+    if (char.wellnessProfile === 'health-focused') {
+      return 'nutrition';
+    }
+
+    if (char.wellnessProfile === 'balanced') {
+      return 'fitness';
+    }
+
+    const statEntries: Array<['fitness' | 'nutrition' | 'mindfulness' | 'sleep', number]> = [
+      ['fitness', (char.stats.strength || 0) + (char.stats.endurance || 0) + (char.stats.agility || 0)],
+      ['mindfulness', char.stats.wisdom || 0],
+      ['nutrition', Math.max(char.gold || 0, char.stats.level || 0)],
+      ['sleep', Math.max(char.stats.health || 0, char.stats.maxHealth || 0) - 100],
+    ];
+
+    return statEntries.sort(([, left], [, right]) => right - left)[0][0];
+  };
+
   // Migrate character data to add missing properties
   const migrateCharacter = (char: Character): Character => {
     const defaultCharacter = createDefaultCharacter(char.name || 'Hero');
@@ -639,7 +816,53 @@ export function GameProvider({ children }: { children: ReactNode }) {
         startDate: toDate(challenge.startDate),
         endDate: toDate(challenge.endDate),
       })) || [],
+      primaryWellnessStat: char.primaryWellnessStat ?? inferPrimaryWellnessStat(char),
     };
+  };
+
+  const backfillStarterFocusBuff = async (char: Character): Promise<Character> => {
+    const primaryWellnessStat = inferPrimaryWellnessStat(char);
+    const starterItemNames: Record<'fitness' | 'nutrition' | 'mindfulness' | 'sleep', string> = {
+      fitness: '⚡ Fitness Ring',
+      nutrition: '🥗 Nutritionist\'s Badge',
+      mindfulness: '🧘 Serenity Amulet',
+      sleep: '😴 Dream Weaver\'s Charm',
+    };
+
+    const existingStarterItem = char.inventory.find((item) => item.name === starterItemNames[primaryWellnessStat]);
+    let updatedCharacter: Character = {
+      ...char,
+      primaryWellnessStat,
+    };
+
+    if (!existingStarterItem) {
+      const starterItem = createPersonalizedStartingItem(primaryWellnessStat);
+      const insertedItemId = await inventoryApi.addItem(char.id, starterItem);
+
+      const shouldEquip = !char.equippedItems?.accessory;
+      if (shouldEquip) {
+        await inventoryApi.updateEquippedItems(char.id, 'accessory', insertedItemId);
+      }
+
+      updatedCharacter = {
+        ...updatedCharacter,
+        inventory: [
+          ...char.inventory,
+          {
+            id: insertedItemId,
+            ...starterItem,
+          },
+        ],
+        equippedItems: shouldEquip
+          ? {
+              ...char.equippedItems,
+              accessory: insertedItemId,
+            }
+          : char.equippedItems,
+      };
+    }
+
+    return updatedCharacter;
   };
 
   const migrateGameState = (state: GameState, migratedCharacter: Character): GameState => {
@@ -695,109 +918,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   // Authentication Methods
   const login = async (email: string, password: string) => {
     try {
-      const authData = await authApi.signIn(email, password);
-      const authUser = authData.user;
-      if (!authUser) throw new Error('Authentication failed');
-
-      const profile = await authApi.getProfile(authUser.id);
-
-      const userData: User = {
-        id: authUser.id,
-        email: authUser.email!,
-        username: profile.username,
-        createdAt: new Date(authUser.created_at),
-        lastLogin: new Date(),
-      };
-
-      setUser(userData);
-      setIsLoggedIn(true);
-
-      // Load character data from Supabase
-      const characterData = await characterApi.getCharacter(authUser.id);
-      if (characterData) {
-        // Load all related data
-        const [
-          inventory,
-          equippedItems,
-          equippedCustomizations,
-          achievements,
-          activities,
-          gameSessions,
-          personalBests,
-          challenges,
-          assessmentResult,
-          quests
-        ] = await Promise.all([
-          inventoryApi.getInventory(characterData.id),
-          inventoryApi.getEquippedItems(characterData.id),
-          inventoryApi.getEquippedCustomizations(characterData.id),
-          achievementsApi.getAchievements(characterData.id),
-          activitiesApi.getActivities(characterData.id),
-          gameSessionsApi.getGameSessions(characterData.id),
-          gameSessionsApi.getPersonalBests(characterData.id),
-          challengesApi.getChallenges(characterData.id),
-          assessmentApi.getAssessmentResult(characterData.id),
-          questsApi.getQuests(characterData.id)
-        ]);
-
-        const fullCharacter: Character = {
-          ...characterData,
-          inventory,
-          equippedItems,
-          equippedCustomizations,
-          achievements,
-          activities,
-          gameSessions,
-          personalBests,
-          activeTierChallenges: challenges,
-          assessmentResult: assessmentResult ?? undefined,
-        };
-
-        const migratedCharacter = migrateCharacter(fullCharacter);
-        
-        const gameStateData: GameState = {
-          character: migratedCharacter,
-          availableQuests: [...enhancedQuests, ...questionBasedQuests],
-          activeQuests: quests.filter(q => !q.completed),
-          completedQuests: quests.filter(q => q.completed),
-          shopInventory: createSampleShop(),
-          availableChallenges: sampleChallenges,
-          availableAchievements: allAchievements,
-          assessmentQuestions: assessmentQuestions,
-        };
-
-        const migratedGameState = migrateGameState(gameStateData, migratedCharacter);
-        setCharacter(migratedCharacter);
-        setGameState(migratedGameState);
-      } else {
-        // Auto-create character from account username so users skip manual creation step.
-        const autoCharacter = await characterApi.createCharacter(authUser.id, profile.username);
-        const starterChallenges = gameTierChallenges.filter(c => c.tier === 'daily').slice(0, 3);
-
-        await Promise.all(
-          starterChallenges.map(challenge => challengesApi.addChallenge(autoCharacter.id, challenge))
-        );
-
-        const populatedCharacter = {
-          ...autoCharacter,
-          activeTierChallenges: starterChallenges,
-        };
-
-        const allInitialQuests = [...enhancedQuests, ...questionBasedQuests];
-        const newGameState: GameState = {
-          character: populatedCharacter,
-          availableQuests: allInitialQuests,
-          activeQuests: [],
-          completedQuests: [],
-          shopInventory: createSampleShop(),
-          availableChallenges: sampleChallenges,
-          availableAchievements: allAchievements,
-          assessmentQuestions: assessmentQuestions,
-        };
-
-        setCharacter(populatedCharacter);
-        setGameState(newGameState);
-      }
+      await authApi.signIn(email, password);
     } catch (error) {
       console.error('Login error:', error);
       throw error;
@@ -806,60 +927,16 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
   const register = async (email: string, username: string, password: string) => {
     try {
-      const { user: newUser, session } = await authApi.signUp(email, password, username);
-      
-      // If we have a session, the user is automatically logged in
-      if (session && newUser) {
-        const profile = await authApi.getProfile(newUser.id);
-        
-        const userData: User = {
-          id: newUser.id,
-          email: newUser.email!,
-          username: profile.username,
-          createdAt: new Date(newUser.created_at),
-          lastLogin: new Date(),
-        };
+      const { session } = await authApi.signUp(email, password, username);
 
-        setUser(userData);
-        setIsLoggedIn(true);
-
-        // Create character immediately for brand new accounts.
-        let characterData = await characterApi.getCharacter(newUser.id);
-        if (!characterData) {
-          const autoCharacter = await characterApi.createCharacter(newUser.id, profile.username);
-          const starterChallenges = gameTierChallenges.filter(c => c.tier === 'daily').slice(0, 3);
-
-          await Promise.all(
-            starterChallenges.map(challenge => challengesApi.addChallenge(autoCharacter.id, challenge))
-          );
-
-          const populatedCharacter = {
-            ...autoCharacter,
-            activeTierChallenges: starterChallenges,
-          };
-
-          const allInitialQuests = [...enhancedQuests, ...questionBasedQuests];
-          const newGameState: GameState = {
-            character: populatedCharacter,
-            availableQuests: allInitialQuests,
-            activeQuests: [],
-            completedQuests: [],
-            shopInventory: createSampleShop(),
-            availableChallenges: sampleChallenges,
-            availableAchievements: allAchievements,
-            assessmentQuestions: assessmentQuestions,
-          };
-
-          setCharacter(populatedCharacter);
-          setGameState(newGameState);
-        }
-      } else {
-        // Email confirmation required - try to login
-        await login(email, password);
+      if (!session) {
+        // If email confirmation is enabled, let user sign in after confirming.
+        setIsAuthLoading(false);
       }
     } catch (error: any) {
       const errorMessage = error?.message || error?.error_description || 'Registration failed';
       console.error('Registration error:', errorMessage, error);
+      setIsAuthLoading(false);
       throw new Error(errorMessage);
     }
   };
@@ -879,104 +956,26 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
   // Listen for auth state changes
   useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      if (!cancelled) {
+        await bootstrapAuthState();
+      }
+    })();
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && !cancelled) {
+        void bootstrapAuthState();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session?.user) {
         try {
-          const profile = await authApi.getProfile(session.user.id);
-          const userData: User = {
-            id: session.user.id,
-            email: session.user.email!,
-            username: profile.username,
-            createdAt: new Date(session.user.created_at),
-            lastLogin: new Date(),
-          };
-          setUser(userData);
-          setIsLoggedIn(true);
-
-          // Keep auth-refresh flow aligned with login flow.
-          const characterData = await characterApi.getCharacter(session.user.id);
-          if (characterData) {
-            const [
-              inventory,
-              equippedItems,
-              equippedCustomizations,
-              achievements,
-              activities,
-              gameSessions,
-              personalBests,
-              challenges,
-              assessmentResult,
-              quests,
-            ] = await Promise.all([
-              inventoryApi.getInventory(characterData.id),
-              inventoryApi.getEquippedItems(characterData.id),
-              inventoryApi.getEquippedCustomizations(characterData.id),
-              achievementsApi.getAchievements(characterData.id),
-              activitiesApi.getActivities(characterData.id),
-              gameSessionsApi.getGameSessions(characterData.id),
-              gameSessionsApi.getPersonalBests(characterData.id),
-              challengesApi.getChallenges(characterData.id),
-              assessmentApi.getAssessmentResult(characterData.id),
-              questsApi.getQuests(characterData.id),
-            ]);
-
-            const fullCharacter: Character = {
-              ...characterData,
-              inventory,
-              equippedItems,
-              equippedCustomizations,
-              achievements,
-              activities,
-              gameSessions,
-              personalBests,
-              activeTierChallenges: challenges,
-              assessmentResult: assessmentResult ?? undefined,
-            };
-
-            const migratedCharacter = migrateCharacter(fullCharacter);
-
-            const gameStateData: GameState = {
-              character: migratedCharacter,
-              availableQuests: [...enhancedQuests, ...questionBasedQuests],
-              activeQuests: quests.filter(q => !q.completed),
-              completedQuests: quests.filter(q => q.completed),
-              shopInventory: createSampleShop(),
-              availableChallenges: sampleChallenges,
-              availableAchievements: allAchievements,
-              assessmentQuestions: assessmentQuestions,
-            };
-
-            const migratedGameState = migrateGameState(gameStateData, migratedCharacter);
-            setCharacter(migratedCharacter);
-            setGameState(migratedGameState);
-          } else {
-            const autoCharacter = await characterApi.createCharacter(session.user.id, profile.username);
-            const starterChallenges = gameTierChallenges.filter(c => c.tier === 'daily').slice(0, 3);
-
-            await Promise.all(
-              starterChallenges.map(challenge => challengesApi.addChallenge(autoCharacter.id, challenge))
-            );
-
-            const populatedCharacter = {
-              ...autoCharacter,
-              activeTierChallenges: starterChallenges,
-            };
-
-            const allInitialQuests = [...enhancedQuests, ...questionBasedQuests];
-            const newGameState: GameState = {
-              character: populatedCharacter,
-              availableQuests: allInitialQuests,
-              activeQuests: [],
-              completedQuests: [],
-              shopInventory: createSampleShop(),
-              availableChallenges: sampleChallenges,
-              availableAchievements: allAchievements,
-              assessmentQuestions: assessmentQuestions,
-            };
-
-            setCharacter(populatedCharacter);
-            setGameState(newGameState);
-          }
+          await hydrateAuthenticatedUser(session.user, session.user.user_metadata?.username as string | undefined);
         } catch (error) {
           const errorMessage =
             error instanceof Error
@@ -985,16 +984,29 @@ export function GameProvider({ children }: { children: ReactNode }) {
                 ? error
                 : JSON.stringify(error);
           console.error('Error loading user profile:', errorMessage, error);
+        } finally {
+          setIsAuthLoading(false);
         }
       } else if (event === 'SIGNED_OUT') {
         setUser(null);
         setIsLoggedIn(false);
         setCharacter(null);
         setGameState(null);
+        setIsAuthLoading(false);
+      } else if (event === 'INITIAL_SESSION' && !session?.user) {
+        setUser(null);
+        setIsLoggedIn(false);
+        setCharacter(null);
+        setGameState(null);
+        setIsAuthLoading(false);
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      cancelled = true;
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      subscription.unsubscribe();
+    };
   }, []);
 
   const saveGame = async () => {
@@ -1136,7 +1148,88 @@ export function GameProvider({ children }: { children: ReactNode }) {
     }
   }, [character, gameState]);
 
-  const createCharacter = async (name: string) => {
+  useEffect(() => {
+    if (!gameState || !character) return;
+
+    const reactivateExpiredQuests = (expiredQuests: Quest[]) => {
+      if (expiredQuests.length === 0) return;
+
+      setGameState((previousState) => {
+        if (!previousState) return previousState;
+
+        const activeQuestIds = new Set(previousState.activeQuests.map((quest) => quest.id));
+        const questsToReactivate = expiredQuests.filter((quest) => !activeQuestIds.has(quest.id));
+        const reactivatedQuestIds = new Set(questsToReactivate.map((quest) => quest.id));
+
+        if (questsToReactivate.length === 0) return previousState;
+
+        return {
+          ...previousState,
+          availableQuests: previousState.availableQuests.filter((quest) => !reactivatedQuestIds.has(quest.id)),
+          activeQuests: [...previousState.activeQuests, ...questsToReactivate],
+        };
+      });
+
+      if (user) {
+        (async () => {
+          try {
+            await Promise.all(
+              expiredQuests.map((quest) =>
+                questsApi.upsertQuest(character.id, quest, { completed: false, completedDate: undefined })
+              )
+            );
+          } catch (error) {
+            console.error('Error reactivating expired cooldown quests:', error);
+          }
+        })();
+      }
+    };
+
+    const now = Date.now();
+    const expiredNow = gameState.availableQuests
+      .filter((quest) => quest.cooldownUntil && new Date(quest.cooldownUntil).getTime() <= now)
+      .map((quest) => ({
+        ...quest,
+        completed: false,
+        completedDate: undefined,
+        cooldownUntil: undefined,
+      }));
+
+    if (expiredNow.length > 0) {
+      reactivateExpiredQuests(expiredNow);
+    }
+
+    const questsOnCooldown = gameState.availableQuests.filter((quest) => {
+      if (!quest.cooldownUntil) return false;
+      return new Date(quest.cooldownUntil).getTime() > Date.now();
+    });
+
+    if (questsOnCooldown.length === 0) return;
+
+    const nextExpiryTime = Math.min(
+      ...questsOnCooldown.map((quest) => new Date(quest.cooldownUntil as Date).getTime())
+    );
+
+    const timeoutMs = Math.max(nextExpiryTime - Date.now(), 0) + 50;
+
+    const timer = window.setTimeout(() => {
+      const runAt = Date.now();
+      const expiredAtRunTime = gameState.availableQuests
+        .filter((quest) => quest.cooldownUntil && new Date(quest.cooldownUntil).getTime() <= runAt)
+        .map((quest) => ({
+          ...quest,
+          completed: false,
+          completedDate: undefined,
+          cooldownUntil: undefined,
+        }));
+
+      reactivateExpiredQuests(expiredAtRunTime);
+    }, timeoutMs);
+
+    return () => window.clearTimeout(timer);
+  }, [gameState, character, user]);
+
+  const createCharacter = async (name: string, primaryWellnessStat?: 'fitness' | 'nutrition' | 'mindfulness' | 'sleep') => {
     if (!user) {
       console.error('No user logged in');
       return;
@@ -1155,11 +1248,35 @@ export function GameProvider({ children }: { children: ReactNode }) {
           challengesApi.addChallenge(newCharacter.id, challenge)
         )
       );
-      
-      const populatedCharacter = {
+
+      // Create personalized starting item if wellness stat was selected
+      let populatedCharacter = {
         ...newCharacter,
         activeTierChallenges: starterChallenges,
-      };
+        primaryWellnessStat: primaryWellnessStat,
+      } as Character;
+
+      // Add personalized starting item to inventory and equip it by default
+      if (primaryWellnessStat) {
+        const startingItem = createPersonalizedStartingItem(primaryWellnessStat);
+        const insertedItemId = await inventoryApi.addItem(newCharacter.id, startingItem);
+        await inventoryApi.updateEquippedItems(newCharacter.id, 'accessory', insertedItemId);
+
+        populatedCharacter = {
+          ...populatedCharacter,
+          inventory: [
+            ...(populatedCharacter.inventory || []),
+            {
+              id: insertedItemId,
+              ...startingItem,
+            },
+          ],
+          equippedItems: {
+            ...populatedCharacter.equippedItems,
+            accessory: insertedItemId,
+          },
+        };
+      }
       
       setCharacter(populatedCharacter);
       
@@ -1265,7 +1382,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     const comboStats = calculateComboStats(sessionsWithCurrent);
 
     // Calculate rewards with buffs and combo
-    const buffs = getEquipmentBuffs();
+    const buffs = getEquipmentBuffs(quest.type);
     
     // Use rewards from session if available (from mini-games), otherwise use quest base rewards
     let finalXpGain: number;
@@ -1288,23 +1405,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     }
     
     // Update stats with final XP gain
-    const newExp = character.stats.experience + finalXpGain;
-    const levelUp = Math.floor(newExp / 100);
-    const newLevel = character.stats.level + levelUp;
-    const newStats = { ...character.stats };
-
-    if (levelUp > 0) {
-      newStats.level = newLevel;
-      newStats.experience = newExp % 100;
-      newStats.maxHealth += levelUp * 5;
-      newStats.health = newStats.maxHealth;
-      newStats.strength += levelUp * 2;
-      newStats.endurance += levelUp * 2;
-      newStats.wisdom += levelUp * 1;
-      newStats.agility += levelUp * 2;
-    } else {
-      newStats.experience = newExp;
-    }
+    const newStats = applyExperienceGain(character.stats, finalXpGain);
 
     // Create activity from quest
     const newActivity: Activity = {
@@ -1361,6 +1462,12 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
     // Update challenge progress
     updatedCharacter = updateChallengeProgress(updatedCharacter, newActivity);
+
+    // Normalize any bonus XP from challenge milestones/rewards.
+    updatedCharacter = {
+      ...updatedCharacter,
+      stats: applyExperienceGain({ ...updatedCharacter.stats, experience: 0 }, updatedCharacter.stats.experience),
+    };
 
     // Check and unlock achievements
     updatedCharacter = checkAchievements(updatedCharacter);
@@ -1444,7 +1551,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
   const addExperience = (amount: number) => {
     if (!character || !gameState) return;
-    const stats = { ...character.stats, experience: character.stats.experience + amount };
+    const stats = applyExperienceGain(character.stats, amount);
     const updated = { ...character, stats };
     setCharacter(updated);
     setGameState({ ...gameState, character: updated });
@@ -1897,17 +2004,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       comboMultiplier: newComboMultiplier,
     };
 
-    // Check for level up
-    const levelUpThreshold = updatedCharacter.stats.level * 1000;
-    if (updatedCharacter.stats.experience >= levelUpThreshold) {
-      updatedCharacter.stats.level += 1;
-      updatedCharacter.stats.maxHealth += 10;
-      updatedCharacter.stats.health = updatedCharacter.stats.maxHealth;
-      updatedCharacter.stats.strength += 2;
-      updatedCharacter.stats.endurance += 2;
-      updatedCharacter.stats.wisdom += 2;
-      updatedCharacter.stats.agility += 2;
-    }
+    updatedCharacter.stats = applyExperienceGain({ ...updatedCharacter.stats, experience: 0 }, updatedCharacter.stats.experience);
 
     const achievementSyncedCharacter = checkAchievements(updatedCharacter);
 
@@ -1948,21 +2045,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       gold: character.gold + totalGold,
     };
 
-    // Check for level up
-    const newExp = updatedCharacter.stats.experience;
-    const levelUp = Math.floor(newExp / 100);
-    const newLevel = updatedCharacter.stats.level + levelUp;
-
-    if (levelUp > 0) {
-      updatedCharacter.stats.level = newLevel;
-      updatedCharacter.stats.experience = newExp % 100;
-      updatedCharacter.stats.maxHealth += levelUp * 5;
-      updatedCharacter.stats.health = updatedCharacter.stats.maxHealth;
-      updatedCharacter.stats.strength += levelUp * 2;
-      updatedCharacter.stats.endurance += levelUp * 2;
-      updatedCharacter.stats.wisdom += levelUp * 1;
-      updatedCharacter.stats.agility += levelUp * 2;
-    }
+    updatedCharacter.stats = applyExperienceGain({ ...updatedCharacter.stats, experience: 0 }, updatedCharacter.stats.experience);
 
     // Check for achievement
     if (challenge.reward.achievement) {
@@ -2206,7 +2289,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   };
 
   // Calculate Equipment Buffs
-  const getEquipmentBuffs = (): EquipmentBuffs => {
+  const getEquipmentBuffs = (questType?: QuestType): EquipmentBuffs => {
     if (!character) {
       return { xpMultiplier: 1, goldMultiplier: 1, speedBoost: 0, accuracyBoost: 0 };
     }
@@ -2218,17 +2301,48 @@ export function GameProvider({ children }: { children: ReactNode }) {
       accuracyBoost: 0,
     };
 
+    const starterItemTypeByName: Record<string, QuestType> = {
+      '⚡ Fitness Ring': 'fitness',
+      '🥗 Nutritionist\'s Badge': 'nutrition',
+      '🧘 Serenity Amulet': 'mindfulness',
+      '😴 Dream Weaver\'s Charm': 'sleep',
+    };
+
+    const primaryWellnessStat = character.primaryWellnessStat ?? inferPrimaryWellnessStat(character);
+    const hasEquippedStarterItem = Object.values(character.equippedItems || {}).some((itemId) => {
+      if (!itemId) return false;
+      const item = character.inventory.find((inventoryItem) => inventoryItem.id === itemId);
+      return item ? starterItemTypeByName[item.name] === primaryWellnessStat : false;
+    });
+
     // Check equipped items
     Object.values(character.equippedItems).forEach(itemId => {
       if (!itemId) return;
       const item = character.inventory.find(i => i.id === itemId);
       if (item && item.buffs) {
-        buffs.xpMultiplier *= item.buffs.xpMultiplier || 1;
-        buffs.goldMultiplier *= item.buffs.goldMultiplier || 1;
+        // Starter survey item boosts XP only for the matching quest type.
+        const starterItemType = starterItemTypeByName[item.name];
+        const isTypeSpecificItem = Boolean(starterItemType);
+        
+        if (isTypeSpecificItem && questType) {
+          if (starterItemType === questType) {
+            buffs.xpMultiplier *= item.buffs.xpMultiplier || 1;
+            buffs.goldMultiplier *= item.buffs.goldMultiplier || 1;
+          }
+        } else if (!isTypeSpecificItem) {
+          // Apply generic buffs from other items
+          buffs.xpMultiplier *= item.buffs.xpMultiplier || 1;
+          buffs.goldMultiplier *= item.buffs.goldMultiplier || 1;
+        }
+        
         buffs.speedBoost += item.buffs.speedBoost || 0;
         buffs.accuracyBoost += item.buffs.accuracyBoost || 0;
       }
     });
+
+    if (questType && primaryWellnessStat === questType && !hasEquippedStarterItem) {
+      buffs.xpMultiplier *= 1.5;
+    }
 
     return buffs;
   };
@@ -2255,6 +2369,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     // Authentication
     user,
     isLoggedIn,
+    isAuthLoading,
     login,
     register,
     logout,

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Quest, GameSession } from '@/lib/types';
 import { X, Play, Trophy, Clock, Star, Award } from 'lucide-react';
@@ -11,6 +11,14 @@ interface MiniGameProps {
   onCancel: () => void;
 }
 
+const getRankFromScore = (score: number): 'S' | 'A' | 'B' | 'C' | 'D' => {
+  if (score >= 9000) return 'S';
+  if (score >= 7500) return 'A';
+  if (score >= 6000) return 'B';
+  if (score >= 4500) return 'C';
+  return 'D';
+};
+
 // Fitness Game - Running challenge
 function FitnessGame({ questId, onComplete, onCancel }: { questId: string; onComplete: (session: GameSession) => void; onCancel: () => void }) {
   // Route to different game variants based on quest ID
@@ -18,13 +26,185 @@ function FitnessGame({ questId, onComplete, onCancel }: { questId: string; onCom
     return <SprintMasterGame questId={questId} onComplete={onComplete} onCancel={onCancel} />;
   } else if (questId === 'quest-2') {
     return <SprintCircuitGame questId={questId} onComplete={onComplete} onCancel={onCancel} />;
+  } else if (questId === 'quest-13') {
+    return <PaceMatchGame questId={questId} onComplete={onComplete} onCancel={onCancel} />;
   } else if (questId === 'quest-9') {
     return <PowerLaneGame questId={questId} onComplete={onComplete} onCancel={onCancel} />;
   } else if (questId === 'quest-10') {
     return <TurboRushGame questId={questId} onComplete={onComplete} onCancel={onCancel} />;
+  } else if (questId === 'quest-14') {
+    return <PulseSprintGame questId={questId} onComplete={onComplete} onCancel={onCancel} />;
   }
   // Default to Sprint Master
   return <SprintMasterGame questId={questId} onComplete={onComplete} onCancel={onCancel} />;
+}
+
+function PaceMatchGame({ questId, onComplete, onCancel }: { questId: string; onComplete: (session: GameSession) => void; onCancel: () => void }) {
+  const [speed, setSpeed] = useState(50);
+  const [target, setTarget] = useState(55);
+  const [stableTicks, setStableTicks] = useState(0);
+  const [mistakes, setMistakes] = useState(0);
+  const [timeLeft, setTimeLeft] = useState(35);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [complete, setComplete] = useState(false);
+  const [startTime, setStartTime] = useState<number | null>(null);
+  const targetStableTicks = 15;
+
+  useEffect(() => {
+    if (!isPlaying || complete) return;
+    if (!startTime) setStartTime(Date.now());
+
+    const timer = setInterval(() => {
+      setTimeLeft((left) => {
+        if (left <= 1) {
+          setComplete(true);
+          setIsPlaying(false);
+          return 0;
+        }
+        return left - 1;
+      });
+
+      setTarget((current) => {
+        const next = current + (Math.random() > 0.5 ? 2 : -2);
+        return Math.min(70, Math.max(35, next));
+      });
+
+      setStableTicks((current) => {
+        const isStable = Math.abs(speed - target) <= 4;
+        if (isStable) return current + 1;
+        setMistakes((m) => m + 1);
+        return current;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [isPlaying, complete, speed, target, startTime]);
+
+  useEffect(() => {
+    if (stableTicks >= targetStableTicks && !complete) {
+      setComplete(true);
+      setIsPlaying(false);
+    }
+  }, [stableTicks, complete]);
+
+  const handleComplete = () => {
+    const completionTime = startTime ? Math.round((Date.now() - startTime) / 1000) : 35;
+    const score = Math.max(1000, Math.round(5200 + (stableTicks * 260) + (timeLeft * 35) - (mistakes * 180)));
+    const session: GameSession = {
+      id: crypto.randomUUID(),
+      questId,
+      questType: 'fitness',
+      completionTime,
+      score,
+      rank: getRankFromScore(score),
+      accuracy: Math.max(40, Math.round((stableTicks / Math.max(stableTicks + mistakes, 1)) * 100)),
+      isPerfect: mistakes === 0,
+      isPersonalBest: false,
+      date: new Date(),
+    };
+    onComplete(session);
+  };
+
+  return (
+    <div className="space-y-3">
+      <h3 className="text-2xl font-bold">Pace Match</h3>
+      <p className="text-sm text-muted-foreground">Keep your pace in the target zone as it shifts.</p>
+      <div className="grid grid-cols-4 gap-2 text-center text-sm">
+        <div className="bg-input rounded p-2"><div className="font-bold text-primary">{speed}</div><div className="text-xs text-muted-foreground">Your Pace</div></div>
+        <div className="bg-input rounded p-2"><div className="font-bold text-secondary">{target}</div><div className="text-xs text-muted-foreground">Target</div></div>
+        <div className="bg-input rounded p-2"><div className="font-bold text-accent">{stableTicks}/{targetStableTicks}</div><div className="text-xs text-muted-foreground">Stable</div></div>
+        <div className="bg-input rounded p-2"><div className="font-bold text-destructive">{timeLeft}s</div><div className="text-xs text-muted-foreground">Time</div></div>
+      </div>
+      <div className="flex gap-2">
+        <Button disabled={!isPlaying || complete} onClick={() => setSpeed((s) => Math.max(20, s - 3))} className="flex-1" variant="outline">Slow Down</Button>
+        <Button disabled={!isPlaying || complete} onClick={() => setSpeed((s) => Math.min(90, s + 3))} className="flex-1" variant="outline">Speed Up</Button>
+      </div>
+      {!isPlaying && !complete && (
+        <div className="space-y-2">
+          <Button onClick={() => setIsPlaying(true)} className="w-full">Start Pace Match</Button>
+          <Button onClick={onCancel} variant="outline" className="w-full">Cancel</Button>
+        </div>
+      )}
+      {complete && <Button onClick={handleComplete} className="w-full">Claim Rewards</Button>}
+    </div>
+  );
+}
+
+function PulseSprintGame({ questId, onComplete, onCancel }: { questId: string; onComplete: (session: GameSession) => void; onCancel: () => void }) {
+  const [timeLeft, setTimeLeft] = useState(30);
+  const [windowOpen, setWindowOpen] = useState(false);
+  const [hits, setHits] = useState(0);
+  const [misses, setMisses] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [complete, setComplete] = useState(false);
+  const [startTime, setStartTime] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!isPlaying || complete) return;
+    if (!startTime) setStartTime(Date.now());
+
+    const timer = setInterval(() => {
+      setTimeLeft((left) => {
+        if (left <= 1) {
+          setComplete(true);
+          setIsPlaying(false);
+          return 0;
+        }
+        return left - 1;
+      });
+      setWindowOpen(Math.random() > 0.45);
+    }, 700);
+
+    return () => clearInterval(timer);
+  }, [isPlaying, complete, startTime]);
+
+  const handleTap = () => {
+    if (!isPlaying || complete) return;
+    if (windowOpen) {
+      setHits((h) => h + 1);
+    } else {
+      setMisses((m) => m + 1);
+    }
+  };
+
+  const handleComplete = () => {
+    const completionTime = startTime ? Math.round((Date.now() - startTime) / 1000) : 30;
+    const score = Math.max(1000, Math.round(5000 + (hits * 380) - (misses * 220)));
+    const session: GameSession = {
+      id: crypto.randomUUID(),
+      questId,
+      questType: 'fitness',
+      completionTime,
+      score,
+      rank: getRankFromScore(score),
+      accuracy: Math.max(20, Math.round((hits / Math.max(hits + misses, 1)) * 100)),
+      isPerfect: misses === 0,
+      isPersonalBest: false,
+      date: new Date(),
+    };
+    onComplete(session);
+  };
+
+  return (
+    <div className="space-y-3">
+      <h3 className="text-2xl font-bold">Pulse Sprint</h3>
+      <p className="text-sm text-muted-foreground">Tap only when the pulse window is OPEN.</p>
+      <div className="grid grid-cols-4 gap-2 text-center text-sm">
+        <div className="bg-input rounded p-2"><div className="font-bold text-primary">{hits}</div><div className="text-xs text-muted-foreground">Hits</div></div>
+        <div className="bg-input rounded p-2"><div className="font-bold text-destructive">{misses}</div><div className="text-xs text-muted-foreground">Misses</div></div>
+        <div className="bg-input rounded p-2"><div className="font-bold text-accent">{windowOpen ? 'OPEN' : 'CLOSED'}</div><div className="text-xs text-muted-foreground">Window</div></div>
+        <div className="bg-input rounded p-2"><div className="font-bold text-secondary">{timeLeft}s</div><div className="text-xs text-muted-foreground">Time</div></div>
+      </div>
+      {isPlaying && !complete && <Button onClick={handleTap} className="w-full h-24 text-xl font-bold">Tap</Button>}
+      {!isPlaying && !complete && (
+        <div className="space-y-2">
+          <Button onClick={() => setIsPlaying(true)} className="w-full">Start Pulse Sprint</Button>
+          <Button onClick={onCancel} variant="outline" className="w-full">Cancel</Button>
+        </div>
+      )}
+      {complete && <Button onClick={handleComplete} className="w-full">Claim Rewards</Button>}
+    </div>
+  );
 }
 
 // Sprint Master - Rhythm tap game
@@ -824,9 +1004,73 @@ function MindfulnessGame({ questId, onComplete, onCancel }: { questId: string; o
     return <MindMazeGame questId={questId} onComplete={onComplete} onCancel={onCancel} />;
   } else if (questId === 'quest-11') {
     return <FlowStateGame questId={questId} onComplete={onComplete} onCancel={onCancel} />;
+  } else if (questId === 'quest-15') {
+    return <BreathPatternGame questId={questId} onComplete={onComplete} onCancel={onCancel} />;
   }
   // Default to Mind Maze
   return <MindMazeGame questId={questId} onComplete={onComplete} onCancel={onCancel} />;
+}
+
+function BreathPatternGame({ questId, onComplete, onCancel }: { questId: string; onComplete: (session: GameSession) => void; onCancel: () => void }) {
+  const pattern = ['Inhale', 'Hold', 'Exhale', 'Hold'];
+  const [step, setStep] = useState(0);
+  const [cycles, setCycles] = useState(0);
+  const [mistakes, setMistakes] = useState(0);
+  const [startTime, setStartTime] = useState<number | null>(null);
+  const targetCycles = 6;
+
+  const handleChoice = (choice: string) => {
+    if (!startTime) setStartTime(Date.now());
+    if (choice !== pattern[step]) {
+      setMistakes((m) => m + 1);
+      return;
+    }
+
+    const nextStep = (step + 1) % pattern.length;
+    setStep(nextStep);
+    if (nextStep === 0) setCycles((c) => c + 1);
+  };
+
+  const complete = cycles >= targetCycles;
+
+  const handleComplete = () => {
+    const completionTime = startTime ? Math.round((Date.now() - startTime) / 1000) : 40;
+    const score = Math.max(1000, Math.round(5200 + (cycles * 700) - (mistakes * 220)));
+    const session: GameSession = {
+      id: crypto.randomUUID(),
+      questId,
+      questType: 'mindfulness',
+      completionTime,
+      score,
+      rank: getRankFromScore(score),
+      accuracy: Math.max(30, Math.round((cycles * pattern.length / Math.max((cycles * pattern.length) + mistakes, 1)) * 100)),
+      isPerfect: mistakes === 0,
+      isPersonalBest: false,
+      date: new Date(),
+    };
+    onComplete(session);
+  };
+
+  return (
+    <div className="space-y-3">
+      <h3 className="text-2xl font-bold">Breath Pattern</h3>
+      <p className="text-sm text-muted-foreground">Follow the cycle exactly: Inhale, Hold, Exhale, Hold.</p>
+      <div className="grid grid-cols-3 gap-2 text-center text-sm">
+        <div className="bg-input rounded p-2"><div className="font-bold text-primary">{cycles}/{targetCycles}</div><div className="text-xs text-muted-foreground">Cycles</div></div>
+        <div className="bg-input rounded p-2"><div className="font-bold text-secondary">{pattern[step]}</div><div className="text-xs text-muted-foreground">Next Step</div></div>
+        <div className="bg-input rounded p-2"><div className="font-bold text-destructive">{mistakes}</div><div className="text-xs text-muted-foreground">Mistakes</div></div>
+      </div>
+      {!complete && (
+        <div className="grid grid-cols-2 gap-2">
+          {pattern.map((choice, index) => (
+            <Button key={`${choice}-${index}`} onClick={() => handleChoice(choice)} variant="outline">{choice}</Button>
+          ))}
+        </div>
+      )}
+      {!startTime && !complete && <Button onClick={onCancel} variant="outline" className="w-full">Cancel</Button>}
+      {complete && <Button onClick={handleComplete} className="w-full">Claim Rewards</Button>}
+    </div>
+  );
 }
 
 // Calm Clicker - Click inside the calm timing zone
@@ -1447,9 +1691,85 @@ function NutritionGame({ questId, onComplete, onCancel }: { questId: string; onC
     return <MacroStackerGame questId={questId} onComplete={onComplete} onCancel={onCancel} />;
   } else if (questId === 'quest-12') {
     return <KitchenGrandmasterGame questId={questId} onComplete={onComplete} onCancel={onCancel} />;
+  } else if (questId === 'quest-16') {
+    return <PortionControlGame questId={questId} onComplete={onComplete} onCancel={onCancel} />;
   }
   // Default to Recipe Master
   return <PlateBuilderGame questId={questId} onComplete={onComplete} onCancel={onCancel} />;
+}
+
+function PortionControlGame({ questId, onComplete, onCancel }: { questId: string; onComplete: (session: GameSession) => void; onCancel: () => void }) {
+  type Round = { label: string; good: string[]; choices: string[] };
+  const rounds: Round[] = [
+    { label: 'High Protein Plate', good: ['🍗', '🥚'], choices: ['🍗', '🥚', '🍩', '🍟'] },
+    { label: 'Balanced Carbs', good: ['🍚', '🥔'], choices: ['🍚', '🥔', '🍫', '🧁'] },
+    { label: 'Healthy Fats', good: ['🥑', '🥜'], choices: ['🥑', '🥜', '🍬', '🥤'] },
+  ];
+
+  const [index, setIndex] = useState(0);
+  const [selected, setSelected] = useState<string[]>([]);
+  const [mistakes, setMistakes] = useState(0);
+  const [startTime, setStartTime] = useState<number | null>(null);
+
+  const current = rounds[index];
+  const complete = index >= rounds.length;
+
+  const toggleChoice = (emoji: string) => {
+    if (!startTime) setStartTime(Date.now());
+    setSelected((prev) => prev.includes(emoji) ? prev.filter((i) => i !== emoji) : [...prev, emoji]);
+  };
+
+  const submitRound = () => {
+    const isCorrect = current.good.every((emoji) => selected.includes(emoji)) && selected.length === current.good.length;
+    if (!isCorrect) setMistakes((m) => m + 1);
+    setSelected([]);
+    setIndex((i) => i + 1);
+  };
+
+  const handleComplete = () => {
+    const completionTime = startTime ? Math.round((Date.now() - startTime) / 1000) : 35;
+    const score = Math.max(1000, Math.round(5500 + ((rounds.length - mistakes) * 900) - (mistakes * 250)));
+    const session: GameSession = {
+      id: crypto.randomUUID(),
+      questId,
+      questType: 'nutrition',
+      completionTime,
+      score,
+      rank: getRankFromScore(score),
+      accuracy: Math.max(30, Math.round(((rounds.length - mistakes) / rounds.length) * 100)),
+      isPerfect: mistakes === 0,
+      isPersonalBest: false,
+      date: new Date(),
+    };
+    onComplete(session);
+  };
+
+  if (complete) {
+    return (
+      <div className="space-y-3">
+        <h3 className="text-2xl font-bold">Portion Control</h3>
+        <p className="text-sm text-muted-foreground">Rounds complete. Mistakes: {mistakes}</p>
+        <Button onClick={handleComplete} className="w-full">Claim Rewards</Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <h3 className="text-2xl font-bold">Portion Control</h3>
+      <p className="text-sm text-muted-foreground">Pick only the healthy pair for each goal.</p>
+      <div className="bg-primary/10 border border-primary/30 rounded-lg p-3 text-center font-semibold">{current.label}</div>
+      <div className="grid grid-cols-2 gap-2">
+        {current.choices.map((emoji) => (
+          <Button key={emoji} variant={selected.includes(emoji) ? 'default' : 'outline'} onClick={() => toggleChoice(emoji)} className="h-16 text-2xl">
+            {emoji}
+          </Button>
+        ))}
+      </div>
+      <Button onClick={submitRound} disabled={selected.length === 0} className="w-full">Submit Round</Button>
+      {!startTime && <Button onClick={onCancel} variant="outline" className="w-full">Cancel</Button>}
+    </div>
+  );
 }
 
 // Plate Builder - Match ingredients to recipes
@@ -2098,9 +2418,170 @@ function SleepGame({ questId, onComplete, onCancel }: { questId: string; onCompl
     return <NightModeClearGame questId={questId} onComplete={onComplete} onCancel={onCancel} />;
   } else if (questId === 'quest-8') {
     return <SheepStarterGame questId={questId} onComplete={onComplete} onCancel={onCancel} />;
+  } else if (questId === 'quest-17') {
+    return <MoonPhaseMemoryGame questId={questId} onComplete={onComplete} onCancel={onCancel} />;
+  } else if (questId === 'quest-18') {
+    return <DreamDriftGame questId={questId} onComplete={onComplete} onCancel={onCancel} />;
   }
   // Default to counting sheep mode
   return <NightModeClearGame questId={questId} onComplete={onComplete} onCancel={onCancel} />;
+}
+
+function MoonPhaseMemoryGame({ questId, onComplete, onCancel }: { questId: string; onComplete: (session: GameSession) => void; onCancel: () => void }) {
+  const moons = ['🌑', '🌓', '🌕', '🌗'];
+  const [sequence, setSequence] = useState<string[]>([]);
+  const [input, setInput] = useState<string[]>([]);
+  const [round, setRound] = useState(1);
+  const [mistakes, setMistakes] = useState(0);
+  const [startTime, setStartTime] = useState<number | null>(null);
+  const targetRounds = 5;
+
+  useEffect(() => {
+    if (sequence.length === 0) {
+      setSequence(Array.from({ length: round + 1 }, () => moons[Math.floor(Math.random() * moons.length)]));
+    }
+  }, [sequence, round]);
+
+  const pressMoon = (moon: string) => {
+    if (!startTime) setStartTime(Date.now());
+    const nextInput = [...input, moon];
+    const expected = sequence[nextInput.length - 1];
+    if (moon !== expected) {
+      setMistakes((m) => m + 1);
+      setInput([]);
+      return;
+    }
+    if (nextInput.length === sequence.length) {
+      if (round >= targetRounds) {
+        setRound((r) => r + 1);
+      } else {
+        setRound((r) => r + 1);
+        setInput([]);
+        setSequence([]);
+      }
+      return;
+    }
+    setInput(nextInput);
+  };
+
+  const complete = round > targetRounds;
+
+  const handleComplete = () => {
+    const completionTime = startTime ? Math.round((Date.now() - startTime) / 1000) : 40;
+    const score = Math.max(1000, Math.round(5400 + (targetRounds * 700) - (mistakes * 240)));
+    const session: GameSession = {
+      id: crypto.randomUUID(),
+      questId,
+      questType: 'sleep',
+      completionTime,
+      score,
+      rank: getRankFromScore(score),
+      accuracy: Math.max(20, Math.round(((targetRounds * 2) / Math.max((targetRounds * 2) + mistakes, 1)) * 100)),
+      isPerfect: mistakes === 0,
+      isPersonalBest: false,
+      date: new Date(),
+    };
+    onComplete(session);
+  };
+
+  if (complete) {
+    return <Button onClick={handleComplete} className="w-full">Claim Rewards</Button>;
+  }
+
+  return (
+    <div className="space-y-3">
+      <h3 className="text-2xl font-bold">Moon Phase Memory</h3>
+      <p className="text-sm text-muted-foreground">Repeat the sequence. Round {Math.min(round, targetRounds)}/{targetRounds}</p>
+      <div className="bg-input rounded p-3 text-center text-2xl">{sequence.join(' ')}</div>
+      <div className="grid grid-cols-4 gap-2">
+        {moons.map((moon) => (
+          <Button key={moon} variant="outline" className="h-16 text-2xl" onClick={() => pressMoon(moon)}>{moon}</Button>
+        ))}
+      </div>
+      {!startTime && <Button onClick={onCancel} variant="outline" className="w-full">Cancel</Button>}
+    </div>
+  );
+}
+
+function DreamDriftGame({ questId, onComplete, onCancel }: { questId: string; onComplete: (session: GameSession) => void; onCancel: () => void }) {
+  const [position, setPosition] = useState(50);
+  const [velocity, setVelocity] = useState(1);
+  const [calmHits, setCalmHits] = useState(0);
+  const [mistakes, setMistakes] = useState(0);
+  const [startTime, setStartTime] = useState<number | null>(null);
+  const targetHits = 12;
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setPosition((currentPosition) => {
+        let next = currentPosition + (velocity * 5);
+        if (next >= 97) {
+          next = 97;
+          setVelocity(-1);
+        } else if (next <= 3) {
+          next = 3;
+          setVelocity(1);
+        }
+        return next;
+      });
+    }, 120);
+
+    return () => clearInterval(interval);
+  }, [velocity]);
+
+  const handleTap = () => {
+    if (!startTime) setStartTime(Date.now());
+    if (position >= 44 && position <= 56) {
+      setCalmHits((h) => h + 1);
+    } else {
+      setMistakes((m) => m + 1);
+    }
+  };
+
+  const complete = calmHits >= targetHits;
+
+  const handleComplete = () => {
+    const completionTime = startTime ? Math.round((Date.now() - startTime) / 1000) : 30;
+    const score = Math.max(1000, Math.round(5300 + (calmHits * 360) - (mistakes * 220)));
+    const session: GameSession = {
+      id: crypto.randomUUID(),
+      questId,
+      questType: 'sleep',
+      completionTime,
+      score,
+      rank: getRankFromScore(score),
+      accuracy: Math.max(30, Math.round((calmHits / Math.max(calmHits + mistakes, 1)) * 100)),
+      isPerfect: mistakes === 0,
+      isPersonalBest: false,
+      date: new Date(),
+    };
+    onComplete(session);
+  };
+
+  return (
+    <div className="space-y-3">
+      <h3 className="text-2xl font-bold">Dream Drift</h3>
+      <p className="text-sm text-muted-foreground">Tap when the marker is in the calm zone.</p>
+      <div className="bg-input rounded-lg p-3 space-y-2">
+        <div className="text-xs text-muted-foreground text-center">Calm zone: 44-56</div>
+        <div className="relative h-4 bg-muted rounded-full overflow-hidden">
+          <div className="absolute left-[44%] w-[12%] h-full bg-secondary/40" />
+          <div
+            className="absolute top-0 h-full w-2 bg-primary"
+            style={{ left: `${position}%`, transform: 'translateX(-50%)' }}
+          />
+        </div>
+      </div>
+      <div className="grid grid-cols-3 gap-2 text-center text-sm">
+        <div className="bg-input rounded p-2"><div className="font-bold text-primary">{calmHits}/{targetHits}</div><div className="text-xs text-muted-foreground">Calm Hits</div></div>
+        <div className="bg-input rounded p-2"><div className="font-bold text-destructive">{mistakes}</div><div className="text-xs text-muted-foreground">Mistakes</div></div>
+        <div className="bg-input rounded p-2"><div className="font-bold text-secondary">{Math.round(position)}</div><div className="text-xs text-muted-foreground">Marker</div></div>
+      </div>
+      {!complete && <Button onClick={handleTap} className="w-full h-20 text-xl">Tap Calm</Button>}
+      {!startTime && !complete && <Button onClick={onCancel} variant="outline" className="w-full">Cancel</Button>}
+      {complete && <Button onClick={handleComplete} className="w-full">Claim Rewards</Button>}
+    </div>
+  );
 }
 
 // Sheep Starter - Bedtime routine sequence
@@ -2482,6 +2963,67 @@ function NightModeClearGame({ questId, onComplete, onCancel }: { questId: string
 
 export default function MiniGame({ quest, onComplete, onCancel }: MiniGameProps) {
   const [pendingRewards, setPendingRewards] = useState<GameSession | null>(null);
+  const gameActionAreaRef = useRef<HTMLDivElement | null>(null);
+  const [isDesktop, setIsDesktop] = useState(false);
+
+  useEffect(() => {
+    const updateIsDesktop = () => {
+      setIsDesktop(window.innerWidth >= 1024);
+    };
+
+    updateIsDesktop();
+    window.addEventListener('resize', updateIsDesktop);
+
+    return () => window.removeEventListener('resize', updateIsDesktop);
+  }, []);
+
+  useEffect(() => {
+    if (!isDesktop) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.tagName === 'SELECT' ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
+
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        onCancel();
+        return;
+      }
+
+      const actionButtons = Array.from(
+        (gameActionAreaRef.current || document).querySelectorAll<HTMLButtonElement>(
+          'button:not(:disabled):not([data-hotkey-ignore="true"])'
+        )
+      );
+
+      if (actionButtons.length === 0) return;
+
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        actionButtons[0].click();
+        return;
+      }
+
+      const index = Number.parseInt(event.key, 10);
+      if (!Number.isNaN(index) && index >= 1 && index <= 9) {
+        const targetButton = actionButtons[index - 1];
+        if (!targetButton) return;
+        event.preventDefault();
+        targetButton.click();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isDesktop, onCancel]);
 
   const handleGameComplete = (sessionData: GameSession) => {
     // Calculate rewards based on quest difficulty and rank
@@ -2529,7 +3071,7 @@ export default function MiniGame({ quest, onComplete, onCancel }: MiniGameProps)
   if (pendingRewards) {
     return (
       <div className="fixed inset-0 min-h-screen bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-hidden">
-        <div className="bg-card border border-border rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 md:p-10 space-y-6">
+        <div ref={gameActionAreaRef} className="bg-card border border-border rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 md:p-10 space-y-6">
           <div className="text-center space-y-2">
             <h2 className="text-4xl md:text-5xl font-bold text-foreground">🎉 Quest Complete!</h2>
             <p className="text-lg text-muted-foreground">Congratulations on finishing {quest.title}!</p>
@@ -2612,11 +3154,17 @@ export default function MiniGame({ quest, onComplete, onCancel }: MiniGameProps)
 
   return (
     <div className="fixed inset-0 min-h-screen bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-3 md:p-4 overflow-hidden">
-      <div className="bg-card border border-border rounded-lg w-full max-w-3xl md:max-w-4xl max-h-[95vh] overflow-hidden p-3 md:p-5 space-y-2 md:space-y-3">
+      <div ref={gameActionAreaRef} className="bg-card border border-border rounded-lg w-full max-w-3xl md:max-w-4xl max-h-[95vh] overflow-hidden p-3 md:p-5 space-y-2 md:space-y-3">
         <div className="flex items-center justify-between gap-4">
-          <h2 className="text-xl md:text-2xl font-bold text-foreground">{quest.title}</h2>
+          <div>
+            <h2 className="text-xl md:text-2xl font-bold text-foreground">{quest.title}</h2>
+            {isDesktop && (
+              <p className="text-xs text-muted-foreground">Keyboard: 1-9 activate buttons, Enter/Space uses primary action, Esc closes.</p>
+            )}
+          </div>
           <button
             onClick={onCancel}
+            data-hotkey-ignore="true"
             className="p-1 hover:bg-input rounded-lg transition-colors shrink-0"
           >
             <X size={20} className="text-muted-foreground" />

@@ -58,8 +58,9 @@ export default function QuestBoard({ fullView = false }: QuestBoardProps) {
   const equipmentBuffs = getEquipmentBuffs();
 
   const getBuffedQuestRewards = (quest: Quest) => {
-    const buffedExperience = Math.round(quest.rewards.experience * equipmentBuffs.xpMultiplier);
-    const buffedGold = Math.round(quest.rewards.gold * equipmentBuffs.goldMultiplier);
+    const questSpecificBuffs = getEquipmentBuffs(quest.type);
+    const buffedExperience = Math.round(quest.rewards.experience * questSpecificBuffs.xpMultiplier);
+    const buffedGold = Math.round(quest.rewards.gold * questSpecificBuffs.goldMultiplier);
 
     return {
       buffedExperience,
@@ -119,6 +120,27 @@ export default function QuestBoard({ fullView = false }: QuestBoardProps) {
   const isGameQuest = (questId: string): boolean => questId.startsWith('quest-');
   const isQuestionQuest = (questId: string): boolean => questId.startsWith('qquest-');
 
+  const gameNamesByQuestId: Record<string, string> = {
+    'quest-1': 'Sprint Master',
+    'quest-2': 'Sprint Circuit',
+    'quest-3': 'Calm Clicker',
+    'quest-4': 'Mind Maze',
+    'quest-5': 'Plate Builder',
+    'quest-6': 'Macro Stacker',
+    'quest-7': 'Night Mode Clear',
+    'quest-8': 'Sheep Starter',
+    'quest-9': 'Power Lane',
+    'quest-10': 'Turbo Rush',
+    'quest-11': 'Flow State',
+    'quest-12': 'Kitchen Grandmaster',
+    'quest-13': 'Pace Match',
+    'quest-14': 'Pulse Sprint',
+    'quest-15': 'Breath Pattern',
+    'quest-16': 'Portion Control',
+    'quest-17': 'Moon Phase Memory',
+    'quest-18': 'Dream Drift',
+  };
+
   const getCooldownRemainingMs = (quest: Quest): number => {
     if (!quest.cooldownUntil) return 0;
     return Math.max(0, new Date(quest.cooldownUntil).getTime() - now);
@@ -153,12 +175,15 @@ export default function QuestBoard({ fullView = false }: QuestBoardProps) {
     showActions: boolean = false,
     isCompleted: boolean = false,
     cooldownRemainingOverrideMs?: number,
+    renderKey?: string,
   ) => {
     const remainingCooldownMs = cooldownRemainingOverrideMs ?? getCooldownRemainingMs(quest);
     const isOnCooldown = remainingCooldownMs > 0;
+    const isCurrentlyActive = gameState.activeQuests.some((activeQuest) => activeQuest.id === quest.id);
+    const cardTitle = isGameQuest(quest.id) ? (gameNamesByQuestId[quest.id] || quest.title) : quest.title;
 
     return (
-    <Card key={quest.id} className={`overflow-hidden hover:border-primary/50 transition-colors ${isCompleted ? 'opacity-60' : ''}`}>
+    <Card key={renderKey ?? quest.id} className={`overflow-hidden hover:border-primary/50 transition-colors ${isCompleted ? 'opacity-60' : ''}`}>
       {(() => {
         const { buffedExperience, buffedGold } = getBuffedQuestRewards(quest);
 
@@ -171,7 +196,7 @@ export default function QuestBoard({ fullView = false }: QuestBoardProps) {
               {React.createElement(questTypeIcons[quest.type], { size: 18, className: 'text-secondary' })}
             </div>
             <div className="flex-1 min-w-0">
-              <h3 className="font-bold text-sm text-foreground truncate">{quest.title}</h3>
+              <h3 className="font-bold text-sm text-foreground truncate">{cardTitle}</h3>
               <p className="text-xs text-muted-foreground truncate">{quest.description}</p>
             </div>
           </div>
@@ -211,6 +236,12 @@ export default function QuestBoard({ fullView = false }: QuestBoardProps) {
             <div className="flex items-center gap-1.5 text-xs text-secondary bg-secondary/10 px-2 py-1.5 rounded border border-secondary/30 font-semibold">
               <CloudMoon size={12} className="shrink-0" />
               Cooldown: {formatCooldown(remainingCooldownMs)}
+            </div>
+          )}
+          {isCompleted && !isOnCooldown && (
+            <div className="flex items-center gap-1.5 text-xs text-primary bg-primary/10 px-2 py-1.5 rounded border border-primary/30 font-semibold">
+              <CheckCircle2 size={12} className="shrink-0" />
+              {isCurrentlyActive ? 'Ready to replay (in Active Quests)' : 'Ready to replay'}
             </div>
           )}
         </div>
@@ -556,8 +587,14 @@ export default function QuestBoard({ fullView = false }: QuestBoardProps) {
             <div className="space-y-4">
               <h2 className="text-2xl font-bold">Completed Quests ({completedQuests.length})</h2>
               <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {completedQuests.map((quest) =>
-                  renderQuestCard(quest, false, true, getCooldownRemainingByQuestId(quest.id))
+                {completedQuests.map((quest, index) =>
+                  renderQuestCard(
+                    quest,
+                    false,
+                    true,
+                    getCooldownRemainingByQuestId(quest.id),
+                    `completed-${quest.id}-${quest.completedDate ? new Date(quest.completedDate).getTime() : index}`,
+                  )
                 )}
               </div>
             </div>

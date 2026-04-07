@@ -100,6 +100,7 @@ export interface Character {
   maxComboStreak: number;
   comboMultiplier: number; // XP/Gold multiplier from combo
   activeTierChallenges: Challenge[]; // Currently active challenge tiers
+  primaryWellnessStat?: 'fitness' | 'nutrition' | 'mindfulness' | 'sleep'; // Initial wellness focus from onboarding survey
 }
 
 // Activity Types (Strava-inspired)
